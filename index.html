@@ -1586,6 +1586,8 @@ setMetaText();
 window._dashboardReload = function(parsed){
   RAW = parsed.rows;
   META = parsed.meta;
+  // Ensure FX defaults are present whenever new data is loaded
+  if(typeof ensureFxDefaults === 'function') ensureFxDefaults();
   // Normalize: ensure every row has a usable _sheet tag (back-compat for old cached data)
   RAW.forEach(function(r){
     if(!r._sheet || !String(r._sheet).trim()){
@@ -1741,6 +1743,24 @@ const state = {
     dismissed:false,
   },
 };
+
+// Defensive: ensure FX defaults are always present (in case anyone clears them)
+const _DEFAULT_FX = {
+  USD: { '2025-04':85.10,'2025-05':85.45,'2025-06':85.80,'2025-07':86.20,'2025-08':86.55,'2025-09':86.90,'2025-10':87.30,'2025-11':87.70,'2025-12':88.10,'2026-01':88.60,'2026-02':89.20,'2026-03':90.50,'2026-04':92.80,'2026-05':94.40 },
+  RMB: { '2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.85,'2026-02':13.10,'2026-03':13.45,'2026-04':13.70,'2026-05':13.90 },
+  CNY: { '2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.85,'2026-02':13.10,'2026-03':13.45,'2026-04':13.70,'2026-05':13.90 },
+};
+function ensureFxDefaults(){
+  for(const cur of Object.keys(_DEFAULT_FX)){
+    if(!state.fx.rates[cur]) state.fx.rates[cur] = {};
+    for(const [m, v] of Object.entries(_DEFAULT_FX[cur])){
+      if(state.fx.rates[cur][m] == null || state.fx.rates[cur][m] === 0){
+        state.fx.rates[cur][m] = v;
+      }
+    }
+  }
+}
+ensureFxDefaults();
 
 /* =========================================================================
    Toggle-chip filter groups
@@ -4161,6 +4181,14 @@ function computeDerivedFields(rows){
             rec.currency = 'USD';
           }
         }
+      }
+      // Normalize currency aliases (RMB/CNY → RMB, EURO → EUR, POUND → GBP)
+      if(rec.currency){
+        const cu = String(rec.currency).trim().toUpperCase();
+        if(cu === 'CNY' || cu === 'YUAN' || cu === 'RMB/CNY' || cu === 'CNY/RMB' || cu === 'CNH') rec.currency = 'RMB';
+        else if(cu === 'EURO') rec.currency = 'EUR';
+        else if(cu === 'POUND') rec.currency = 'GBP';
+        else rec.currency = cu;
       }
       rows.push(rec);
     }
