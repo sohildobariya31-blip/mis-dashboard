@@ -5247,6 +5247,10 @@ async function fetchFromPublishedSheets(){
   setTimeout(function(){
     if(overlay) overlay.classList.add('hide');
     if(statusEl) statusEl.classList.add('hide');
+    // Reset for next time
+    if(loadText) loadText.textContent = 'Loading dashboard…';
+    if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
+    if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
   }, 700);
 }
 
