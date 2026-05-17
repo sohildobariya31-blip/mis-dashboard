@@ -113,20 +113,72 @@ body{
 }
 header{
   padding:12px 22px;display:flex;align-items:center;justify-content:space-between;
-  border-bottom:1px solid var(--border);
-  background:linear-gradient(90deg,var(--card),var(--card2));
-  position:sticky;top:0;z-index:60;backdrop-filter:blur(8px);
-  gap:10px;min-height:54px;overflow:visible;
+  border-bottom:1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, var(--card) 96%, transparent) 0%,
+      color-mix(in srgb, var(--card2) 96%, transparent) 50%,
+      color-mix(in srgb, var(--card) 96%, transparent) 100%);
+  position:sticky;top:0;z-index:60;
+  -webkit-backdrop-filter:blur(12px) saturate(140%);
+  backdrop-filter:blur(12px) saturate(140%);
+  gap:10px;min-height:58px;overflow:visible;
+  box-shadow:0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent), 0 12px 30px rgba(0,0,0,.18);
 }
-header h1{margin:0;font-size:20px;letter-spacing:.3px;display:flex;align-items:center;gap:10px;color:var(--text)}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--accent) 60%, transparent) 25%, color-mix(in srgb, var(--accent2) 60%, transparent) 75%, transparent 100%);
+  background-size:200% 100%;
+  animation:headerLine 6s linear infinite;
+  pointer-events:none;
+}
+@keyframes headerLine{0%{background-position:0 0}100%{background-position:-200% 0}}
+header h1{
+  margin:0;font-size:19px;letter-spacing:.4px;display:flex;align-items:center;gap:12px;color:var(--text);font-weight:700;
+}
 header h1 .logo{
-  width:30px;height:30px;border-radius:9px;
+  position:relative;
+  width:34px;height:34px;border-radius:10px;
   background:linear-gradient(135deg,var(--accent),var(--accent2));
-  display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-text);
-  box-shadow:0 4px 14px rgba(0,0,0,.25);
+  display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-text);font-size:16px;
+  box-shadow:0 6px 18px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 1px 0 rgba(255,255,255,.25);
+  transition:transform .35s cubic-bezier(.22,1,.36,1);
 }
-header .meta{font-size:12px;color:var(--muted)}
+header h1 .logo::before{
+  content:"";position:absolute;inset:-2px;border-radius:12px;padding:2px;
+  background:conic-gradient(from var(--logo-angle, 0deg), var(--accent), var(--accent2), var(--accent));
+  -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  opacity:0;transition:opacity .3s ease;
+  animation:logoSpin 6s linear infinite;
+}
+@property --logo-angle{syntax:'<angle>'; initial-value:0deg; inherits:false}
+@keyframes logoSpin{to{--logo-angle:360deg}}
+header h1:hover .logo{transform:rotate(-6deg) scale(1.06)}
+header h1:hover .logo::before{opacity:1}
+header .meta{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .container{padding:16px 22px 60px}
+
+/* Header refresh button — polished spinning state */
+#refreshBtn{
+  position:relative;
+  border:1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  background:color-mix(in srgb, var(--card2) 92%, transparent);
+  transition:all .2s cubic-bezier(.22,1,.36,1);
+}
+#refreshBtn:hover{
+  border-color:var(--accent);
+  background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--card2)), color-mix(in srgb, var(--accent2) 12%, var(--card2)));
+  box-shadow:0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent);
+  transform:translateY(-1px);
+}
+#refreshBtn.spinning::before{
+  content:"";position:absolute;inset:-3px;border-radius:10px;
+  border:2px solid transparent;
+  border-top-color:var(--accent);border-right-color:var(--accent2);
+  animation:spin .9s linear infinite;
+  pointer-events:none;
+}
 
 /* Buttons */
 .btn{
@@ -460,16 +512,34 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 .toast.warn{border-left-color:var(--warn)}
 @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 
-/* Loading overlay */
+/* Loading overlay — cinematic */
 .loading-overlay{
   position:fixed;inset:0;z-index:200;
-  background:radial-gradient(ellipse at center, color-mix(in srgb, var(--card) 95%, transparent) 0%, var(--bg) 100%);
+  background:
+    radial-gradient(ellipse 60% 80% at 50% 50%, color-mix(in srgb, var(--card) 96%, transparent) 0%, var(--bg) 80%),
+    var(--bg);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  transition:opacity .4s ease;backdrop-filter:blur(6px);
+  transition:opacity .35s cubic-bezier(.22,1,.36,1), visibility .35s linear;
+  -webkit-backdrop-filter:blur(8px) saturate(140%);
+  backdrop-filter:blur(8px) saturate(140%);
 }
+.loading-overlay::before{
+  /* subtle animated grid in the background */
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.18;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 30%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, transparent) 1px, transparent 1px);
+  background-size:42px 42px;
+  mask-image:radial-gradient(ellipse 50% 50% at 50% 50%, black 0%, transparent 80%);
+  -webkit-mask-image:radial-gradient(ellipse 50% 50% at 50% 50%, black 0%, transparent 80%);
+  animation:gridDrift 30s linear infinite;
+}
+@keyframes gridDrift{to{background-position:42px 42px, 42px 42px}}
 .loading-overlay.hide{opacity:0;pointer-events:none;visibility:hidden}
+
 .loader-orb{
-  position:relative;width:90px;height:90px;
+  position:relative;width:96px;height:96px;
+  filter:drop-shadow(0 0 24px color-mix(in srgb, var(--accent) 50%, transparent));
 }
 .loader-orb::before,.loader-orb::after{
   content:"";position:absolute;inset:0;border-radius:50%;
@@ -477,64 +547,89 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 }
 .loader-orb::before{
   border-top-color:var(--accent);border-right-color:var(--accent2);
-  animation:spin 1.4s cubic-bezier(.5,.1,.5,.9) infinite;
+  animation:spin 1.1s cubic-bezier(.45,.05,.55,.95) infinite;
 }
 .loader-orb::after{
   border-bottom-color:var(--accent2);border-left-color:var(--accent);
-  inset:12px;animation:spin 1.8s cubic-bezier(.5,.1,.5,.9) reverse infinite;
+  inset:14px;animation:spin 1.5s cubic-bezier(.45,.05,.55,.95) reverse infinite;
 }
 .loader-orb .core{
-  position:absolute;inset:32px;border-radius:50%;
-  background:linear-gradient(135deg, var(--accent), var(--accent2));
-  box-shadow:0 0 32px color-mix(in srgb, var(--accent) 60%, transparent);
-  animation:pulse2 1.6s ease infinite;
+  position:absolute;inset:34px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%, color-mix(in srgb, white 25%, var(--accent)), var(--accent2));
+  box-shadow:
+    0 0 36px color-mix(in srgb, var(--accent) 80%, transparent),
+    inset 0 0 12px color-mix(in srgb, white 50%, transparent);
+  animation:corePulse 1.4s ease-in-out infinite;
+}
+@keyframes corePulse{
+  0%,100%{transform:scale(1);box-shadow:0 0 30px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 0 12px color-mix(in srgb, white 40%, transparent)}
+  50%{transform:scale(1.12);box-shadow:0 0 50px color-mix(in srgb, var(--accent) 100%, transparent), inset 0 0 16px color-mix(in srgb, white 70%, transparent)}
 }
 .loader{width:50px;height:50px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{margin-top:20px;color:var(--text);font-size:15px;font-weight:600;letter-spacing:.3px}
-.loading-sub{margin-top:4px;color:var(--muted);font-size:12px;animation:pulse2 1.5s ease infinite}
-@keyframes pulse2{0%,100%{opacity:.6}50%{opacity:1}}
+.loading-text{
+  margin-top:24px;color:var(--text);font-size:16px;font-weight:700;letter-spacing:.5px;
+  background:linear-gradient(90deg, var(--text), color-mix(in srgb, var(--accent) 70%, var(--text)), var(--text));
+  background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  animation:textShimmer 3s ease-in-out infinite;
+}
+@keyframes textShimmer{0%,100%{background-position:0 0}50%{background-position:-200% 0}}
+.loading-sub{margin-top:6px;color:var(--muted);font-size:12px;letter-spacing:.3px;animation:pulse2 1.6s ease infinite}
+@keyframes pulse2{0%,100%{opacity:.55}50%{opacity:1}}
 
-/* Progress bar */
+/* Progress bar — slicker */
 .loading-progress{
-  margin-top:18px;width:280px;max-width:80vw;
-  height:6px;background:var(--bg2);border-radius:99px;overflow:hidden;
-  border:1px solid var(--border);
+  position:relative;
+  margin-top:22px;width:300px;max-width:80vw;
+  height:5px;background:color-mix(in srgb, var(--bg2) 80%, transparent);border-radius:99px;overflow:hidden;
+  border:1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.3);
 }
 .loading-progress .bar{
-  height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
   background-size:200% 100%;
-  border-radius:99px;transition:width .35s ease;
-  animation:flow 2s linear infinite;
+  border-radius:99px;
+  transition:width .3s cubic-bezier(.22,1,.36,1);
+  animation:flow 1.5s linear infinite;
+  box-shadow:0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 @keyframes flow{0%{background-position:0 0}100%{background-position:200% 0}}
 .loading-progress.indet .bar{
-  width:35% !important;
-  animation:slide 1.4s cubic-bezier(.6,.1,.4,.9) infinite, flow 2s linear infinite;
+  width:40% !important;
+  animation:indetSlide 1.2s cubic-bezier(.45,.05,.55,.95) infinite, flow 1.5s linear infinite;
 }
-@keyframes slide{0%{transform:translateX(-120%)}100%{transform:translateX(380%)}}
+@keyframes indetSlide{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}
 
 /* Per-sheet status list during fetch */
 .fetch-status{
-  margin-top:18px;width:340px;max-width:90vw;
-  background:var(--card);border:1px solid var(--border);border-radius:12px;
-  padding:12px;font-size:12px;
+  margin-top:20px;width:360px;max-width:90vw;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--card) 95%, transparent), color-mix(in srgb, var(--card2) 95%, transparent));
+  border:1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius:14px;
+  padding:14px;font-size:12px;
+  box-shadow:0 12px 30px rgba(0,0,0,.35), inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent);
+  animation:fetchStatusIn .4s cubic-bezier(.22,1,.36,1) both;
 }
+@keyframes fetchStatusIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .fetch-status .row{
-  display:flex;align-items:center;gap:10px;padding:6px 0;
-  border-bottom:1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+  display:flex;align-items:center;gap:12px;padding:7px 4px;
+  border-bottom:1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+  transition:background .15s ease;
 }
 .fetch-status .row:last-child{border-bottom:0}
 .fetch-status .ico{
-  width:18px;height:18px;flex:none;display:inline-flex;align-items:center;justify-content:center;
-  font-size:14px;
+  width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+  font-size:14px;border-radius:50%;
 }
-.fetch-status .ico.spin{animation:spin 1s linear infinite;color:var(--accent)}
-.fetch-status .ico.ok{color:var(--good)}
-.fetch-status .ico.err{color:var(--bad)}
+.fetch-status .ico.spin{animation:spin .9s linear infinite;color:var(--accent)}
+.fetch-status .ico.ok{color:var(--good);background:color-mix(in srgb, var(--good) 14%, transparent)}
+.fetch-status .ico.err{color:var(--bad);background:color-mix(in srgb, var(--bad) 14%, transparent)}
 .fetch-status .ico.wait{color:var(--muted)}
-.fetch-status .name{flex:1;color:var(--text);font-weight:500}
-.fetch-status .count{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.fetch-status .name{flex:1;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fetch-status .count{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;font-weight:600}
 .fetch-status.hide{display:none}
 
 /* FX warning banner (animated flowing stripe) */
@@ -1451,7 +1546,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.8</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.9</span></footer>
 
 
 <script>
@@ -5496,12 +5591,23 @@ document.getElementById('menuLiveSheets').addEventListener('click', fetchFromPub
 
 // ============================================================
 // Apps Script live JSON endpoint — instant refresh (no CSV cache)
+// Supports MULTIPLE endpoints (one per spreadsheet); fetches in parallel.
 // ============================================================
-function getAppsScriptUrl(){
-  try{ return localStorage.getItem('mis.appsScriptUrl') || ''; }catch(e){ return ''; }
+function getAppsScriptUrls(){
+  try{
+    const raw = localStorage.getItem('mis.appsScriptUrls');
+    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr)) return arr.filter(Boolean); }
+    // Migrate legacy single-URL setting
+    const single = localStorage.getItem('mis.appsScriptUrl');
+    if(single) return [single];
+  }catch(e){}
+  return [];
 }
-function setAppsScriptUrl(u){
-  try{ localStorage.setItem('mis.appsScriptUrl', u); }catch(e){}
+function setAppsScriptUrls(arr){
+  try{
+    localStorage.setItem('mis.appsScriptUrls', JSON.stringify(arr));
+    localStorage.removeItem('mis.appsScriptUrl');
+  }catch(e){}
 }
 
 // Convert the 2D rows-array returned by Apps Script into our normalized row objects.
@@ -5511,7 +5617,6 @@ function appsScriptRowsToObjects(arr2d, sheetTag){
   const csv = arr2d.map(row =>
     row.map(cell => {
       const s = (cell == null) ? '' : String(cell);
-      // Quote if contains comma, quote, or newline
       if(s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1){
         return '"' + s.replace(/"/g, '""') + '"';
       }
@@ -5521,24 +5626,34 @@ function appsScriptRowsToObjects(arr2d, sheetTag){
   return parseCSVToRows(csv, sheetTag);
 }
 
+function promptForAppsScriptUrls(prefill){
+  const lines = (prefill && prefill.length ? prefill : ['']).join('\n');
+  const txt = prompt(
+    'Paste your Apps Script Web App URL(s) — one per line.\n\n' +
+    'You can have one script per spreadsheet (recommended) or one combined script.\n' +
+    'Format: https://script.google.com/macros/s/AKfycb…/exec\n\n' +
+    'See AppsScript-Live-Setup.md for setup steps.',
+    lines
+  );
+  if(!txt) return null;
+  const urls = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  for(const u of urls){
+    if(!/^https:\/\/script\.google\.com\//i.test(u)){
+      toast('Not an Apps Script URL: ' + u.slice(0,60), 'error', 5000);
+      return null;
+    }
+  }
+  return urls;
+}
+
 async function fetchFromAppsScript(opts){
   opts = opts || {};
   const silent = !!opts.silent;
-  let url = opts.url || getAppsScriptUrl();
-  if(!url){
-    url = prompt(
-      'Paste your Apps Script Web App URL.\n\n' +
-      'Format: https://script.google.com/macros/s/AKfycb…/exec\n\n' +
-      'See AppsScript-Live-Setup.md for one-time setup instructions.',
-      ''
-    );
-    if(!url) return;
-    url = url.trim();
-    if(!/^https:\/\/script\.google\.com\//i.test(url)){
-      toast('That doesn\'t look like an Apps Script Web App URL', 'error', 4000);
-      return;
-    }
-    setAppsScriptUrl(url);
+  let urls = opts.urls || getAppsScriptUrls();
+  if(!urls.length){
+    urls = promptForAppsScriptUrls([]);
+    if(!urls || !urls.length) return;
+    setAppsScriptUrls(urls);
   }
 
   const overlay = document.getElementById('loadingOverlay');
@@ -5546,108 +5661,122 @@ async function fetchFromAppsScript(opts){
   const loadSub  = document.getElementById('loadingSub');
   const progress = document.getElementById('loadingProgress');
   const statusEl = document.getElementById('fetchStatus');
+
   if(overlay) overlay.classList.remove('hide');
-  if(loadText) loadText.textContent = 'Connecting to Apps Script…';
-  if(loadSub)  loadSub.textContent  = 'Reading sheets directly (bypasses cache)';
-  if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
-  if(statusEl) statusEl.classList.add('hide');
-
-  if(!silent) toast('Fetching live data via Apps Script…', 'info', 2500);
-
-  let resp, payload;
-  try{
-    resp = await fetch(url, { cache:'no-store', redirect:'follow' });
-  }catch(e){
-    if(overlay) overlay.classList.add('hide');
-    toast('Network error: ' + e.message, 'error', 5000);
-    return;
-  }
-  if(!resp.ok){
-    if(overlay) overlay.classList.add('hide');
-    toast('Apps Script returned HTTP ' + resp.status, 'error', 5000);
-    return;
-  }
-  try{
-    payload = await resp.json();
-  }catch(e){
-    if(overlay) overlay.classList.add('hide');
-    toast('Apps Script returned non-JSON. Check that "Who has access" is "Anyone".', 'error', 6000);
-    return;
+  if(loadText) loadText.textContent = '⚡ Fetching live data';
+  if(loadSub)  loadSub.textContent  = 'Connecting to ' + urls.length + ' Apps Script endpoint' + (urls.length > 1 ? 's' : '') + '…';
+  if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '4%'; }
+  if(statusEl){
+    statusEl.classList.remove('hide');
+    statusEl.innerHTML = urls.map(function(u, i){
+      const short = u.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 22) + '…';
+      return '<div class="row" data-idx="'+i+'"><span class="ico spin">⟳</span><span class="name">'+short+'</span><span class="count">connecting…</span></div>';
+    }).join('');
   }
 
-  if(!payload || payload.ok === false){
-    if(overlay) overlay.classList.add('hide');
-    toast('Apps Script error: ' + (payload && payload.error || 'unknown'), 'error', 6000);
-    return;
+  function setRow(idx, ico, iconCls, count){
+    if(!statusEl) return;
+    const row = statusEl.querySelector('.row[data-idx="'+idx+'"]');
+    if(!row) return;
+    row.querySelector('.ico').className = 'ico ' + iconCls;
+    row.querySelector('.ico').textContent = ico;
+    if(count != null) row.querySelector('.count').textContent = count;
   }
 
-  if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '20%'; }
-  if(loadText) loadText.textContent = 'Parsing ' + (payload.sheets || []).length + ' sheets…';
-
+  const t0 = performance.now();
   const allRows = [];
   const sheetInfo = [];
-  const sheets = payload.sheets || [];
-  for(let i=0; i<sheets.length; i++){
-    const s = sheets[i];
-    if(s.error){ sheetInfo.push(s.tag + ' (' + s.error + ')'); continue; }
-    const rows = appsScriptRowsToObjects(s.data, s.tag);
-    rows.forEach(r => { r._source = 'Apps Script (live)'; r._sheet = s.tag; });
-    allRows.push(...rows);
-    sheetInfo.push(s.tag + ' (' + rows.length + ')');
+  let totalServerMs = 0;
+  let done = 0;
+
+  const promises = urls.map(async function(url, i){
+    try{
+      const resp = await fetch(url, { cache:'no-store', redirect:'follow' });
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const payload = await resp.json();
+      if(!payload || payload.ok === false) throw new Error(payload && payload.error || 'bad payload');
+      const sheets = payload.sheets || [];
+      let rowsHere = 0;
+      for(const s of sheets){
+        if(s.error){ sheetInfo.push(s.tag + ' (' + s.error + ')'); continue; }
+        const rs = appsScriptRowsToObjects(s.data, s.tag);
+        rs.forEach(r => { r._source = 'Apps Script (live)'; r._sheet = s.tag; });
+        allRows.push(...rs);
+        sheetInfo.push(s.tag + ' (' + rs.length + ')');
+        rowsHere += rs.length;
+      }
+      totalServerMs = Math.max(totalServerMs, payload.elapsedMs || 0);
+      setRow(i, '✓', 'ok', rowsHere + ' rows · ' + (payload.elapsedMs||0) + 'ms');
+    }catch(e){
+      console.error('Apps Script fetch failed:', url, e);
+      setRow(i, '✕', 'err', e.message || 'failed');
+    }
+    done++;
     if(progress){
-      const pct = 20 + Math.round(((i+1)/sheets.length) * 70);
+      const pct = 4 + Math.round((done/urls.length) * 90);
       progress.querySelector('.bar').style.width = pct + '%';
     }
-    if(loadSub) loadSub.textContent = 'Loaded ' + (i+1) + '/' + sheets.length + ' sheets';
-  }
+    if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints loaded';
+  });
+
+  await Promise.all(promises);
+  const totalMs = Math.round(performance.now() - t0);
 
   if(allRows.length){
     const meta = {
       sourceFile: 'Apps Script (live)',
       sheet: sheetInfo.join(', '),
       rowCount: allRows.length,
-      generatedAt: new Date().toLocaleString() + ' (server: ' + (payload.fetchedAt||'?') + ', ' + (payload.elapsedMs||0) + 'ms)',
+      generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
     };
     if(loadText) loadText.textContent = 'Rendering dashboard…';
-    if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length + ' rows';
+    if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
+    if(progress) progress.querySelector('.bar').style.width = '100%';
     window._dashboardReload({ rows: allRows, meta });
     document.getElementById('refreshBtn').style.display = '';
     document.getElementById('refreshBtn').dataset.source = 'appsScript';
     document.getElementById('menuDisconnect').style.display = '';
-    if(!silent) toast('Live data loaded: ' + allRows.length + ' rows (' + (payload.elapsedMs||0) + 'ms server)', 'success', 4500);
+    if(!silent) toast('⚡ Live: ' + allRows.length.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
   } else {
-    if(!silent) toast('Apps Script returned 0 rows. Check sheet IDs in the script.', 'warn', 5000);
+    if(!silent) toast('Apps Script returned 0 rows. Check the script and sheet IDs.', 'warn', 5500);
   }
 
   setTimeout(() => {
     if(overlay) overlay.classList.add('hide');
+    if(statusEl) statusEl.classList.add('hide');
     if(loadText) loadText.textContent = 'Loading dashboard…';
     if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
     if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
-  }, 600);
+  }, 800);
 }
 
 document.getElementById('menuAppsScript').addEventListener('click', () => {
-  // Show current URL (if any) and let user reset it via shift-click or by clearing
-  const cur = getAppsScriptUrl();
-  if(cur){
-    const next = prompt(
-      'Apps Script Web App URL is already set:\n\n' + cur +
-      '\n\n• OK = keep & fetch now\n• Edit URL = paste a new one\n• Empty = clear and re-prompt',
-      cur
-    );
+  const cur = getAppsScriptUrls();
+  if(cur.length){
+    const next = promptForAppsScriptUrls(cur);
     if(next === null) return;
-    if(!next.trim()){ try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){} fetchFromAppsScript(); return; }
-    if(next.trim() !== cur) setAppsScriptUrl(next.trim());
-    fetchFromAppsScript({ url: next.trim() });
+    if(!next.length){
+      try{ localStorage.removeItem('mis.appsScriptUrls'); }catch(e){}
+      try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){}
+      toast('Apps Script URLs cleared.', 'info');
+      return;
+    }
+    setAppsScriptUrls(next);
+    fetchFromAppsScript({ urls: next });
   } else {
-    fetchFromAppsScript();
+    const next = promptForAppsScriptUrls([]);
+    if(!next || !next.length) return;
+    setAppsScriptUrls(next);
+    fetchFromAppsScript({ urls: next });
   }
 });
 
 // Header refresh button — re-fetch from whatever source is active
 document.getElementById('refreshBtn').addEventListener('click', () => {
-  const src = document.getElementById('refreshBtn').dataset.source;
+  const btn = document.getElementById('refreshBtn');
+  const src = btn.dataset.source;
+  btn.classList.add('spinning');
+  setTimeout(() => btn.classList.remove('spinning'), 1200);
   if(src === 'appsScript'){
     fetchFromAppsScript({ silent: false });
   } else {
@@ -5655,26 +5784,26 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   }
 });
 
-// Auto-set refresh button source after the published-sheets fetch
+// Show refresh button after any data load (CSV or Apps Script)
 (function(){
-  const _origPub = window.fetchFromPublishedSheets;
-  // Show refresh button after a successful published-sheets load too
   const obs = new MutationObserver(()=>{
-    if(typeof RAW !== 'undefined' && RAW.length > 0 && document.getElementById('refreshBtn').style.display === 'none'){
-      document.getElementById('refreshBtn').style.display = '';
-      document.getElementById('refreshBtn').dataset.source = 'csv';
+    if(typeof RAW !== 'undefined' && RAW.length > 0){
+      const btn = document.getElementById('refreshBtn');
+      if(btn && btn.style.display === 'none'){
+        btn.style.display = '';
+        if(!btn.dataset.source) btn.dataset.source = 'csv';
+      }
     }
   });
-  // Watch for changes to the meta header
   const meta = document.getElementById('meta');
   if(meta) obs.observe(meta, { childList: true, characterData: true, subtree: true });
 })();
 
-// On page load, if Apps Script URL is already configured, surface refresh button
+// On page load, if Apps Script URLs are already configured, surface refresh button
 (function(){
-  if(getAppsScriptUrl()){
-    document.getElementById('refreshBtn').style.display = '';
-    document.getElementById('refreshBtn').dataset.source = 'appsScript';
+  if(getAppsScriptUrls().length){
+    const btn = document.getElementById('refreshBtn');
+    if(btn){ btn.style.display = ''; btn.dataset.source = 'appsScript'; }
   }
 })();
 
@@ -5705,6 +5834,7 @@ document.getElementById('menuDisconnect').addEventListener('click', ()=>{
   try{ localStorage.removeItem('mis_gsheet_config'); }catch(e){}
   try{ localStorage.removeItem('mis_sp_config'); }catch(e){}
   try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){}
+  try{ localStorage.removeItem('mis.appsScriptUrls'); }catch(e){}
   // Stop auto-refresh timers
   if(gsheetState.timer){ clearInterval(gsheetState.timer); gsheetState.timer = null; }
   if(spState.timer){ clearInterval(spState.timer); spState.timer = null; }
