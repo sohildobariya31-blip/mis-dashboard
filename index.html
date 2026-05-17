@@ -1555,6 +1555,17 @@ const RAW0 = (window.PURCHASE_DATA && window.PURCHASE_DATA.rows) || [];
 const META0 = (window.PURCHASE_DATA && window.PURCHASE_DATA.meta) || {};
 let RAW  = RAW0.slice();
 let META = Object.assign({}, META0);
+// Back-compat: tag any rows missing _sheet (older cached data)
+RAW.forEach(function(r){
+  if(!r._sheet || !String(r._sheet).trim()){
+    const src = String(r._source || META.sourceFile || '').toLowerCase();
+    let sheet = 'BOM';
+    if(src.indexOf('other') !== -1 || src.indexOf('material') !== -1) sheet = 'Other material';
+    if(src.indexOf('26-27') !== -1 || src.indexOf('2627') !== -1) sheet += ' 26-27';
+    else if(src.indexOf('25-26') !== -1 || src.indexOf('2526') !== -1) sheet += ' 25-26';
+    r._sheet = sheet;
+  }
+});
 function setMetaText(){
   const meta = document.getElementById('meta');
   if(!meta) return;
@@ -1575,6 +1586,18 @@ setMetaText();
 window._dashboardReload = function(parsed){
   RAW = parsed.rows;
   META = parsed.meta;
+  // Normalize: ensure every row has a usable _sheet tag (back-compat for old cached data)
+  RAW.forEach(function(r){
+    if(!r._sheet || !String(r._sheet).trim()){
+      const src = String(r._source || META.sourceFile || '').toLowerCase();
+      let sheet = 'BOM'; // default
+      if(src.indexOf('other') !== -1 || src.indexOf('material') !== -1) sheet = 'Other material';
+      // append year hint
+      if(src.indexOf('26-27') !== -1 || src.indexOf('2627') !== -1) sheet += ' 26-27';
+      else if(src.indexOf('25-26') !== -1 || src.indexOf('2526') !== -1) sheet += ' 25-26';
+      r._sheet = sheet;
+    }
+  });
   setMetaText();
   // Show data source indicator
   var srcTag = document.getElementById('dataSourceTag');
@@ -1732,8 +1755,13 @@ function buildFilterGroups(){
     // NOTE: `state` is declared later as `const`. On the first call this throws (TDZ); catch handles it.
     if(state && state.sheetFilter && state.sheetFilter !== 'all'){
       sourceRows = RAW.filter(r=>{
-        const sheet = (r._sheet || '').toLowerCase();
+        let sheet = (r._sheet || '').toLowerCase();
         const source = (r._source || '').toLowerCase();
+        if(!sheet){
+          if(source.indexOf('bom') !== -1) sheet = 'bom';
+          else if(source.indexOf('other') !== -1 || source.indexOf('material') !== -1) sheet = 'other';
+          else sheet = 'bom';
+        }
         const combined = sheet + ' ' + source;
         switch(state.sheetFilter){
           case 'bom': return sheet.indexOf('bom') !== -1;
@@ -1899,8 +1927,15 @@ function applyFiltersExceptDate(rows){
   // Apply sheet/source filter first
   if(state.sheetFilter && state.sheetFilter !== 'all'){
     rows = rows.filter(r=>{
-      const sheet = (r._sheet || '').toLowerCase();
+      // Fall back to filename-based inference if _sheet missing (older cached data)
+      let sheet = (r._sheet || '').toLowerCase();
       const source = (r._source || '').toLowerCase();
+      if(!sheet){
+        // Try to guess from filename
+        if(source.indexOf('bom') !== -1) sheet = 'bom';
+        else if(source.indexOf('other') !== -1 || source.indexOf('material') !== -1) sheet = 'other';
+        else sheet = 'bom'; // default to BOM since most rows are BOM
+      }
       const combined = sheet + ' ' + source;
       switch(state.sheetFilter){
         case 'bom': return sheet.indexOf('bom') !== -1;
@@ -2958,11 +2993,15 @@ function render(){
    ========================================================================= */
 ['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ render(); setMetaText(); }));
 document.getElementById('sheetFilter').addEventListener('change', ()=>{
-  // Clear stale dimension selections (some may not exist in the new view)
-  if(typeof state !== 'undefined' && state && state.filters){
+  // 1. First sync the dropdown value into state
+  state.sheetFilter = document.getElementById('sheetFilter').value;
+  // 2. Clear stale dimension selections (some may not exist in the new view)
+  if(state.filters){
     Object.keys(state.filters).forEach(k=>{ try{ state.filters[k].clear(); }catch(e){} });
   }
+  // 3. Now rebuild filter groups using the new state.sheetFilter
   buildFilterGroups();
+  // 4. Re-render dashboard (will also call readTopFilters again to keep things in sync)
   render();
   setMetaText();
 });
