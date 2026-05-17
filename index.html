@@ -698,6 +698,18 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
           <option value="amount">Basic (excl. GST)</option>
         </select>
       </div>
+      <div>
+        <label>Sheet / Data source</label>
+        <select id="sheetFilter">
+          <option value="all" selected>All sheets combined</option>
+          <option value="bom">BOM only</option>
+          <option value="other">Other material only</option>
+          <option value="bom2627">BOM 26-27 only</option>
+          <option value="bom2526">BOM 25-26 only</option>
+          <option value="other2627">Other material 26-27 only</option>
+          <option value="other2526">Other material 25-26 only</option>
+        </select>
+      </div>
     </div>
 
     <div class="section-h" style="margin-top:14px"><h2>Category & Dimension Filters</h2><div class="line"></div></div>
@@ -1539,6 +1551,7 @@ const state = {
   dateBasis:'poDate', from:null, to:null, granularity:'week',
   kpiMetric:'payable',
   paymentMetric:'payable',
+  sheetFilter:'all',
   filters:Object.fromEntries(FILTER_GROUPS.map(g=>[g.key, new Set()])),
   search:'', tblPay:'',
   colSearch:{}, visibleCols:ALL_COLUMNS.filter(c=>c.default).map(c=>c.key),
@@ -1729,12 +1742,28 @@ function readTopFilters(){
   state.granularity= document.getElementById('granularity').value;
   state.kpiMetric  = document.getElementById('kpiMetric').value;
   state.paymentMetric = document.getElementById('paymentMetric').value;
+  state.sheetFilter = document.getElementById('sheetFilter').value;
   state.from = document.getElementById('fromDate').value || null;
   state.to   = document.getElementById('toDate').value   || null;
   state.search = document.getElementById('tblSearch').value.toLowerCase().trim();
   state.tblPay = document.getElementById('tblPay').value;
 }
 function applyFiltersExceptDate(rows){
+  // Apply sheet/source filter first
+  if(state.sheetFilter && state.sheetFilter !== 'all'){
+    rows = rows.filter(r=>{
+      const sheet = (r._sheet || '').toLowerCase();
+      switch(state.sheetFilter){
+        case 'bom': return sheet.indexOf('bom') !== -1;
+        case 'other': return sheet.indexOf('other') !== -1;
+        case 'bom2627': return sheet.indexOf('bom') !== -1 && sheet.indexOf('26-27') !== -1;
+        case 'bom2526': return sheet.indexOf('bom') !== -1 && sheet.indexOf('25-26') !== -1;
+        case 'other2627': return sheet.indexOf('other') !== -1 && sheet.indexOf('26-27') !== -1;
+        case 'other2526': return sheet.indexOf('other') !== -1 && sheet.indexOf('25-26') !== -1;
+        default: return true;
+      }
+    });
+  }
   return rows.filter(r=>{
     for(const g of FILTER_GROUPS){
       const set = state.filters[g.key];
@@ -2778,7 +2807,7 @@ function render(){
 /* =========================================================================
    Listeners
    ========================================================================= */
-['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric'].forEach(id=>document.getElementById(id).addEventListener('change', render));
+['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric','sheetFilter'].forEach(id=>document.getElementById(id).addEventListener('change', render));
 document.getElementById('tblSearch').addEventListener('input', renderTableBody);
 document.getElementById('tblPay').addEventListener('change', renderTableBody);
 
