@@ -1,0 +1,18 @@
+# Excel files (sensitive purchase data) — never push
+*.xlsx
+*.xls
+*.xlsm
+
+# Node modules from local testing
+node_modules/
+
+# IDE / editor folders
+.kiro/
+.vscode/
+
+# Local commit helper
+_commit.bat
+_test_*.js
+_inspect*.js
+_e2e_*.js
+_gs_*.csv

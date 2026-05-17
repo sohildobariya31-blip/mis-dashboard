@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Purchase MIS - Upload Excel</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:#0b1020;color:#e7ecff;font-family:'Segoe UI',system-ui,sans-serif;
+  background:radial-gradient(900px at 30% 20%,#1a2552,transparent),radial-gradient(700px at 80% 80%,#0e2a45,transparent),#0b1020;
+}
+.card{background:#161f3d;border:1px solid #27325c;border-radius:20px;padding:40px 36px;
+  max-width:600px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.card h1{margin:0 0 6px;font-size:24px;background:linear-gradient(135deg,#5b8cff,#22d3ee);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.card p{color:#8a93b8;font-size:14px;line-height:1.6;margin:8px 0 20px}
+.upload-area{
+  border:2px dashed #27325c;border-radius:14px;padding:40px 20px;cursor:pointer;
+  transition:all .2s ease;margin-bottom:20px;
+}
+.upload-area:hover,.upload-area.drag{border-color:#5b8cff;background:rgba(91,140,255,.06)}
+.upload-area .icon{font-size:48px;margin-bottom:10px}
+.upload-area .text{font-size:15px;color:#cdd6ff;font-weight:600}
+.upload-area .sub{font-size:12px;color:#8a93b8;margin-top:6px}
+input[type=file]{display:none}
+.btn{background:linear-gradient(135deg,#5b8cff,#22d3ee);color:#0b1020;font-weight:700;
+  border:none;border-radius:10px;padding:12px 24px;font-size:15px;cursor:pointer;
+  transition:transform .15s,filter .15s}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.1)}
+.status{margin-top:16px;font-size:13px;color:#8a93b8;min-height:20px}
+.status.ok{color:#22c55e}
+.status.err{color:#ef4444}
+.sheet-pick{margin-top:16px;text-align:left}
+.sheet-pick label{font-size:12px;color:#8a93b8;text-transform:uppercase;letter-spacing:.5px}
+.sheet-pick select{width:100%;background:#111935;color:#e7ecff;border:1px solid #27325c;
+  border-radius:8px;padding:10px;font-size:14px;margin-top:6px}
+.sheet-pick .go{margin-top:12px;text-align:center}
+.recent{margin-top:20px;padding-top:16px;border-top:1px solid #27325c;font-size:12px;color:#8a93b8}
+.recent a{color:#5b8cff;cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📊 Purchase MIS Dashboard</h1>
+  <p>Upload your Purchase Record Excel file. The dashboard will open with all charts, filters, and analysis.</p>
+
+  <div class="upload-area" id="dropArea">
+    <div class="icon">📂</div>
+    <div class="text">Click here or drag & drop your .xlsx file</div>
+    <div class="sub">Supports BOM, Other Material, or any sheet with the standard columns</div>
+  </div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm"/>
+
+  <div id="sheetPick" class="sheet-pick" style="display:none">
+    <label>Select sheet to load:</label>
+    <select id="sheetSelect"></select>
+    <div class="go"><button class="btn" id="loadBtn">Load Dashboard →</button></div>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div class="recent" id="recent" style="display:none">
+    Last loaded: <span id="lastName"></span> — <a id="reloadLink">reload from cache</a>
+  </div>
+</div>
+
+<script>
+var HEADER_MAP = (function(){
+  var norm = function(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,''); };
+  var pairs = [
+    ['Category (BOM)','category'],['Category','category'],['Department','category'],
+    ['PO no','poNo'],['PO Number','poNo'],['PO Date','poDate'],['PO date','poDate'],
+    ['Name of Supplier','supplier'],['Supplier','supplier'],['Vendor','supplier'],['Vendor Name','supplier'],
+    ['Module type','module'],['Module','module'],
+    ['Item Code','itemCode'],['Item','itemCode'],
+    ['Item description','description'],['Material Description','description'],['Description','description'],
+    ['Variant','variant'],['Qty','qty'],['Quantity','qty'],['UOM','uom'],
+    ['Invoice no','invoiceNo'],['Invoice/BL Date','invoiceDate'],['Invoice/BL date','invoiceDate'],
+    ['BL no','blNo'],['Status','status'],
+    ['Project code','project'],['Project Code','project'],['Project','project'],
+    ['COO','coo'],['CON','coo'],['Country of Origin','coo'],
+    ['Payment term','paymentTerm'],['Shipping term','shippingTerm'],
+    ['currency','currency'],['Currency','currency'],
+    ['Basic Rate','basicRate'],['Rate','basicRate'],[' Rate','basicRate'],
+    ['Amount','amount'],['Freight','freight'],
+    ['GST%','gstPct'],['GST','gstPct'],
+    ['Total Amount','totalAmount'],
+    ['Payable amount','payable'],['Payable','payable'],['Payable Amount','payable'],
+    ['Debit Amount','debit'],['Debit','debit'],['Credit days','creditDays'],
+    ['Due date','dueDate'],
+    ['Payment status','paymentStatus'],['payment status','paymentStatus'],
+    ['Paid Amount','paid'],['Paid','paid'],
+    ['Outstanding','outstanding'],['O/S amount','outstanding'],['O/S Amount','outstanding'],
+    ['BOE no','boeNo'],['BOE date','boeDate'],['Landed cost/UOM','landedCost'],
+    ['LC no','lcNo'],['WR no','wrNo'],['WR date','wrDate'],
+    ['Lot no','lotNo'],['QC status','qcStatus'],['Remarks','remarks'],['Notes','remarks'],
+  ];
+  var m = {}; pairs.forEach(function(p){ m[norm(p[0])] = p[1]; }); return m;
+})();
+var NUMERIC = {qty:1,basicRate:1,amount:1,freight:1,gstPct:1,totalAmount:1,payable:1,debit:1,creditDays:1,paid:1,outstanding:1,landedCost:1};
+var DATES = {poDate:1,invoiceDate:1,dueDate:1,boeDate:1,wrDate:1};
+function norm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+function excelDateToISO(v){
+  if(v==null||v==='') return null;
+  if(v instanceof Date) return v.getFullYear()<1901?null:v.toISOString().slice(0,10);
+  if(typeof v==='number'){var d=new Date(Math.round((v-25569)*86400*1000));return d.getFullYear()<1901?null:d.toISOString().slice(0,10);}
+  if(typeof v==='string'){var t=Date.parse(v.trim());if(!isNaN(t)){var d2=new Date(t);return d2.getFullYear()<1901?null:d2.toISOString().slice(0,10);}return null;}
+  return null;
+}
+function parseSheet(wb, sheetName, fileName){
+  var ws=wb.Sheets[sheetName];
+  var aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:false});
+  if(!aoa.length) return {rows:[],meta:{sourceFile:fileName,sheet:sheetName,rowCount:0,generatedAt:new Date().toLocaleString()}};
+  var headerIdx=-1,headerMap=null;
+  for(var i=0;i<Math.min(5,aoa.length);i++){
+    var row=aoa[i];if(!row)continue;var map={},known=0;
+    row.forEach(function(cell,idx){if(cell==null||cell==='')return;var k=HEADER_MAP[norm(cell)];if(k){map[idx]=k;known++;}});
+    if(known>=3){headerIdx=i;headerMap=map;break;}
+  }
+  if(headerIdx<0){headerIdx=0;headerMap={};if(aoa[0])aoa[0].forEach(function(cell,idx){var k=HEADER_MAP[norm(cell)];if(k)headerMap[idx]=k;});}
+  var rows=[];
+  for(var r=headerIdx+1;r<aoa.length;r++){
+    var row=aoa[r];if(!row||!row.some(function(v){return v!=null&&v!=='';}))continue;
+    var rec={},nonEmpty=false;
+    for(var idxStr in headerMap){
+      var idx=+idxStr,key=headerMap[idxStr],v=row[idx];
+      if(v==null||v===''){rec[key]=null;continue;}
+      if(DATES[key])v=excelDateToISO(v);
+      else if(NUMERIC[key]){if(typeof v==='string'){var n=parseFloat(v.replace(/[, ]/g,''));v=isNaN(n)?null:n;}}
+      else if(typeof v==='string'){v=v.trim();if(v==='')v=null;}
+      rec[key]=v;if(v!==null&&v!=='')nonEmpty=true;
+    }
+    if(!nonEmpty)continue;
+    if(rec.poNo==null&&!rec.itemCode&&!rec.supplier&&!rec.description)continue;
+    if(!rec.itemCode&&rec.description)rec.itemCode=String(rec.description).slice(0,60);
+    rows.push(rec);
+  }
+  return {rows:rows,meta:{sourceFile:fileName,sheet:sheetName,rowCount:rows.length,generatedAt:new Date().toLocaleString()}};
+}
+
+// UI
+var dropArea=document.getElementById('dropArea');
+var fileInput=document.getElementById('fileInput');
+var status=document.getElementById('status');
+var sheetPick=document.getElementById('sheetPick');
+var sheetSelect=document.getElementById('sheetSelect');
+var currentWB=null, currentFileName='';
+
+dropArea.addEventListener('click',function(){fileInput.click();});
+fileInput.addEventListener('change',function(e){if(e.target.files[0])handleFile(e.target.files[0]);});
+dropArea.addEventListener('dragover',function(e){e.preventDefault();dropArea.classList.add('drag');});
+dropArea.addEventListener('dragleave',function(){dropArea.classList.remove('drag');});
+dropArea.addEventListener('drop',function(e){e.preventDefault();dropArea.classList.remove('drag');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+
+function handleFile(file){
+  status.className='status';status.textContent='Reading '+file.name+'...';
+  currentFileName=file.name;
+  var reader=new FileReader();
+  reader.onerror=function(){status.className='status err';status.textContent='Failed to read file.';};
+  reader.onload=function(e){
+    try{
+      var arr=new Uint8Array(e.target.result);
+      currentWB=XLSX.read(arr,{type:'array',cellDates:true});
+      var sheets=currentWB.SheetNames;
+      if(!sheets.length){status.className='status err';status.textContent='No sheets found.';return;}
+      if(sheets.length===1){
+        doLoad(sheets[0]);
+      } else {
+        sheetSelect.innerHTML='';
+        var bom=sheets.find(function(s){return /^bom$/i.test(s);});
+        sheets.forEach(function(s){
+          var ws=currentWB.Sheets[s],ref=ws['!ref']||'';
+          var rc=ref?XLSX.utils.decode_range(ref).e.r+1:0;
+          var opt=document.createElement('option');opt.value=s;opt.textContent=s+' (~'+rc+' rows)';
+          if(s===bom)opt.selected=true;
+          sheetSelect.appendChild(opt);
+        });
+        sheetPick.style.display='';
+        status.textContent='File read. Pick a sheet below.';
+      }
+    }catch(err){status.className='status err';status.textContent='Error: '+err.message;}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('loadBtn').addEventListener('click',function(){
+  doLoad(sheetSelect.value);
+});
+
+function doLoad(sheetName){
+  status.className='status';status.textContent='Parsing "'+sheetName+'"...';
+  var parsed=parseSheet(currentWB,sheetName,currentFileName);
+  if(parsed.rows.length===0){status.className='status err';status.textContent='No data rows found. Check column headers.';return;}
+  status.className='status ok';status.textContent='✓ Loaded '+parsed.rows.length+' rows. Opening dashboard...';
+
+  // Write data.js content to localStorage (dashboard will read it)
+  var payload={meta:parsed.meta,rows:parsed.rows};
+  try{localStorage.setItem('mis_dashboard_data',JSON.stringify(payload));}catch(e){
+    status.className='status err';status.textContent='Data too large for localStorage. Use build_dashboard.py instead.';return;
+  }
+  // Open dashboard
+  setTimeout(function(){window.location.href='dashboard.html';},500);
+}
+
+// Check for cached data
+try{
+  var cached=localStorage.getItem('mis_dashboard_data');
+  if(cached){
+    var d=JSON.parse(cached);
+    if(d&&d.meta&&d.rows&&d.rows.length){
+      document.getElementById('recent').style.display='';
+      document.getElementById('lastName').textContent=d.meta.sourceFile+' ('+d.rows.length+' rows, '+d.meta.sheet+')';
+      document.getElementById('reloadLink').addEventListener('click',function(){window.location.href='dashboard.html';});
+    }
+  }
+}catch(e){}
+</script>
+</body>
+</html>

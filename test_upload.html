@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html><head>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head><body style="background:#111;color:#eee;font-family:sans-serif;padding:30px">
+<h2>Upload Test</h2>
+<input type="file" id="f" accept=".xlsx,.xls"/>
+<pre id="out">Waiting for file...</pre>
+<script>
+document.getElementById('f').addEventListener('change', function(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('out').textContent = 'Reading ' + file.name + '...';
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var arr = new Uint8Array(ev.target.result);
+      var wb = XLSX.read(arr, {type:'array', cellDates:true});
+      var info = 'Sheets: ' + wb.SheetNames.join(', ') + '\n\n';
+      var sheet = wb.SheetNames.find(function(s){return /bom/i.test(s);}) || wb.SheetNames[0];
+      var aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheet], {header:1, raw:true, defval:null});
+      info += 'Using sheet: ' + sheet + '\n';
+      info += 'Total rows: ' + aoa.length + '\n';
+      info += 'Header row: ' + JSON.stringify(aoa[0]) + '\n\n';
+      info += 'Row 2: ' + JSON.stringify(aoa[1]) + '\n';
+      info += 'Row 3: ' + JSON.stringify(aoa[2]) + '\n';
+      document.getElementById('out').textContent = info;
+    }catch(err){
+      document.getElementById('out').textContent = 'ERROR: ' + err.message + '\n' + err.stack;
+    }
+  };
+  reader.onerror = function(){ document.getElementById('out').textContent = 'FileReader error'; };
+  reader.readAsArrayBuffer(file);
+});
+</script>
+</body></html>
