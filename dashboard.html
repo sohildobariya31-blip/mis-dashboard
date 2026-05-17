@@ -207,8 +207,9 @@ header .meta{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums
   border:1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
   background:color-mix(in srgb, var(--card2) 92%, transparent);
   transition:all .2s cubic-bezier(.22,1,.36,1);
+  font-variant-numeric:tabular-nums;
 }
-#refreshBtn:hover{
+#refreshBtn:hover:not(:disabled){
   border-color:var(--accent);
   background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--card2)), color-mix(in srgb, var(--accent2) 12%, var(--card2)));
   box-shadow:0 4px 14px color-mix(in srgb, var(--accent) 25%, transparent);
@@ -220,6 +221,21 @@ header .meta{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums
   border-top-color:var(--accent);border-right-color:var(--accent2);
   animation:spin .9s linear infinite;
   pointer-events:none;
+}
+#refreshBtn:disabled,
+#refreshBtn.cooldown{
+  cursor:not-allowed;opacity:.65;
+  background:color-mix(in srgb, var(--bg2) 90%, transparent);
+  border-color:var(--border);
+  color:var(--muted);
+  transform:none;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.2);
+}
+#refreshBtn.cooldown{
+  background:linear-gradient(90deg, color-mix(in srgb, var(--warn) 12%, var(--bg2)), color-mix(in srgb, var(--accent) 6%, var(--bg2)));
+  border-color:color-mix(in srgb, var(--warn) 35%, var(--border));
+  color:var(--warn);
+  font-weight:600;
 }
 
 /* Compact button row on small screens */
@@ -1634,7 +1650,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.14</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.15</span></footer>
 
 
 <script>
@@ -6050,17 +6066,53 @@ document.getElementById('menuAppsScript').addEventListener('click', () => {
 });
 
 // Header refresh button — re-fetch from whatever source is active
-document.getElementById('refreshBtn').addEventListener('click', () => {
+// SharePoint Apps Script gets a 60s cooldown after each fetch (download is expensive).
+const REFRESH_COOLDOWNS = { spAppsScript: 60_000 };
+let _refreshCooldownTimer = null;
+function _setRefreshCooldown(btn, ms){
+  if(_refreshCooldownTimer){ clearInterval(_refreshCooldownTimer); _refreshCooldownTimer = null; }
+  if(!ms){ btn.disabled = false; btn.classList.remove('cooldown'); btn.textContent = '🔄 Refresh'; return; }
+  const start = Date.now();
+  const update = () => {
+    const remaining = Math.max(0, ms - (Date.now() - start));
+    if(remaining <= 0){
+      btn.disabled = false;
+      btn.classList.remove('cooldown');
+      btn.textContent = '🔄 Refresh';
+      clearInterval(_refreshCooldownTimer);
+      _refreshCooldownTimer = null;
+      return;
+    }
+    const sec = Math.ceil(remaining / 1000);
+    btn.textContent = '⏳ ' + sec + 's';
+  };
+  btn.disabled = true;
+  btn.classList.add('cooldown');
+  update();
+  _refreshCooldownTimer = setInterval(update, 250);
+}
+
+document.getElementById('refreshBtn').addEventListener('click', async () => {
   const btn = document.getElementById('refreshBtn');
+  if(btn.disabled) return;
   const src = btn.dataset.source;
   btn.classList.add('spinning');
-  setTimeout(() => btn.classList.remove('spinning'), 1200);
+
+  let p;
   if(src === 'appsScript'){
-    fetchFromAppsScript({ silent: true });
+    p = fetchFromAppsScript({ silent: true });
   } else if(src === 'spAppsScript'){
-    fetchFromSharePointAppsScript({ silent: true });
+    p = fetchFromSharePointAppsScript({ silent: true });
   } else {
-    fetchFromPublishedSheets();
+    p = fetchFromPublishedSheets();
+  }
+
+  // Wait for fetch to finish, then start the cooldown if applicable
+  try{ await p; }catch(e){}
+  btn.classList.remove('spinning');
+  const cooldown = REFRESH_COOLDOWNS[src];
+  if(cooldown){
+    _setRefreshCooldown(btn, cooldown);
   }
 });
 
