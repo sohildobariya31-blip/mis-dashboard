@@ -396,6 +396,19 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 .toast.warn{border-left-color:var(--warn)}
 @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 
+/* Loading overlay */
+.loading-overlay{
+  position:fixed;inset:0;z-index:200;
+  background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity .4s ease;
+}
+.loading-overlay.hide{opacity:0;pointer-events:none}
+.loader{width:50px;height:50px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{margin-top:16px;color:var(--muted);font-size:14px;animation:pulse2 1.5s ease infinite}
+@keyframes pulse2{0%,100%{opacity:.6}50%{opacity:1}}
+
 /* FX warning banner (animated flowing stripe) */
 .fx-banner{
   display:none;align-items:center;gap:10px;flex-wrap:wrap;
@@ -476,6 +489,12 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 </style>
 </head>
 <body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader"></div>
+  <div class="loading-text" id="loadingText">Loading dashboard...</div>
+</div>
 
 <header>
   <div>
@@ -1312,6 +1331,10 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   window.addEventListener('load', fixTabTop);
   window.addEventListener('resize', fixTabTop);
   document.addEventListener('DOMContentLoaded', fixTabTop);
+  // Hide loading overlay once page is ready
+  window.addEventListener('load', function(){
+    setTimeout(function(){ var ov=document.getElementById('loadingOverlay'); if(ov) ov.classList.add('hide'); }, 500);
+  });
 
   // Check if Google Sheets or SharePoint config exists — if yes, skip upload screen
   var hasGSheetConfig = false;
@@ -1753,13 +1776,15 @@ function applyFiltersExceptDate(rows){
   if(state.sheetFilter && state.sheetFilter !== 'all'){
     rows = rows.filter(r=>{
       const sheet = (r._sheet || '').toLowerCase();
+      const source = (r._source || '').toLowerCase();
+      const combined = sheet + ' ' + source;
       switch(state.sheetFilter){
         case 'bom': return sheet.indexOf('bom') !== -1;
-        case 'other': return sheet.indexOf('other') !== -1;
-        case 'bom2627': return sheet.indexOf('bom') !== -1 && sheet.indexOf('26-27') !== -1;
-        case 'bom2526': return sheet.indexOf('bom') !== -1 && sheet.indexOf('25-26') !== -1;
-        case 'other2627': return sheet.indexOf('other') !== -1 && sheet.indexOf('26-27') !== -1;
-        case 'other2526': return sheet.indexOf('other') !== -1 && sheet.indexOf('25-26') !== -1;
+        case 'other': return sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1;
+        case 'bom2627': return sheet.indexOf('bom') !== -1 && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1 || combined.indexOf('26_27') !== -1);
+        case 'bom2526': return sheet.indexOf('bom') !== -1 && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1 || combined.indexOf('25_26') !== -1);
+        case 'other2627': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
+        case 'other2526': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
         default: return true;
       }
     });
@@ -4909,6 +4934,11 @@ document.getElementById('emptyGSheetBtn').addEventListener('click', ()=>{
 });
 // "Load from Google Sheets (live)" — fetch from hardcoded published URLs
 function fetchFromPublishedSheets(){
+  // Show loading
+  var overlay = document.getElementById('loadingOverlay');
+  var loadText = document.getElementById('loadingText');
+  if(overlay){ overlay.classList.remove('hide'); }
+  if(loadText) loadText.textContent = 'Fetching from Google Sheets...';
   var PUBLISHED_CSVS = [
     {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMHtEn6jxMkSxr0qgvihp4A22Qq8Z2hlcyMo3b9-tM1iaAWoeey_fK6wIZEUHWFhEXN2r8WRi9JW2I/pub?gid=495463294&single=true&output=csv', name:'BOM 26-27'},
     {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMHtEn6jxMkSxr0qgvihp4A22Qq8Z2hlcyMo3b9-tM1iaAWoeey_fK6wIZEUHWFhEXN2r8WRi9JW2I/pub?gid=1691872829&single=true&output=csv', name:'Other material 26-27'},
@@ -4942,6 +4972,9 @@ function fetchFromPublishedSheets(){
     } else {
       toast('No data loaded. Check if sheets are published correctly.', 'warn');
     }
+    // Hide loading overlay
+    var ov = document.getElementById('loadingOverlay');
+    if(ov) ov.classList.add('hide');
   })();
 }
 
