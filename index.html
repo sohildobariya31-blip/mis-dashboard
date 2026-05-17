@@ -1559,14 +1559,14 @@ function setMetaText(){
   const meta = document.getElementById('meta');
   if(!meta) return;
   let txt = `Source: ${META.sourceFile || '-'} | Sheet: ${META.sheet || '-'} | Rows: ${META.rowCount || 0} | Generated: ${META.generatedAt || '-'}`;
-  // If sheet filter active, show what's filtered
-  if(typeof state !== 'undefined' && state && state.sheetFilter && state.sheetFilter !== 'all' && Array.isArray(RAW) && RAW.length){
-    try{
+  // If sheet filter active, show what's filtered (wrapped — `state` is declared later, accessing in TDZ throws)
+  try{
+    if(state && state.sheetFilter && state.sheetFilter !== 'all' && Array.isArray(RAW) && RAW.length){
       const labels = {bom:'BOM only',other:'Other material only',bom2627:'BOM 26-27',bom2526:'BOM 25-26',other2627:'Other 26-27',other2526:'Other 25-26'};
       const filtered = applyFiltersExceptDate(RAW);
       txt += ` | View: ${labels[state.sheetFilter] || state.sheetFilter} (${filtered.length} rows)`;
-    }catch(e){}
-  }
+    }
+  }catch(e){ /* state not yet initialized — first call before declaration */ }
   meta.textContent = txt;
 }
 setMetaText();
@@ -1729,9 +1729,8 @@ function buildFilterGroups(){
   // Source rows: respect sheet filter so options only show items relevant to selected sheet(s)
   let sourceRows = RAW;
   try{
-    if(typeof state !== 'undefined' && state && state.sheetFilter && state.sheetFilter !== 'all'){
-      const before = RAW.length;
-      // Apply only sheet filter (not dimension filters, since dimension filters are what we are populating)
+    // NOTE: `state` is declared later as `const`. On the first call this throws (TDZ); catch handles it.
+    if(state && state.sheetFilter && state.sheetFilter !== 'all'){
       sourceRows = RAW.filter(r=>{
         const sheet = (r._sheet || '').toLowerCase();
         const source = (r._source || '').toLowerCase();
@@ -1747,7 +1746,7 @@ function buildFilterGroups(){
         }
       });
     }
-  }catch(e){}
+  }catch(e){ /* state not yet initialized on first call */ }
   FILTER_GROUPS.forEach(g=>{
     const values = uniq(sourceRows.map(r=>r[g.key] ?? (g.missingLabel || null)));
     const el = document.createElement('div');
