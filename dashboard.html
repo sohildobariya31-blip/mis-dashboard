@@ -634,11 +634,13 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     <div class="meta" id="dataSourceTag" style="display:none;margin-top:2px;padding:2px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;display:inline-block">📁 Source: <span id="dataSourceName">-</span></div>
   </div>
   <div class="btn-row">
+    <button class="btn ghost" id="refreshBtn" title="Refresh from current data source" style="display:none">🔄 Refresh</button>
     <div class="dropdown">
       <button class="btn" id="dataBtn" title="Data source">📂 Data ▾</button>
       <div class="dropdown-menu" id="dataMenu">
         <div class="dropdown-item" id="menuUpload">📂 Upload Excel file(s)</div>
         <div class="dropdown-item" id="menuLiveSheets" style="color:var(--good)">🔄 Load from Google Sheets (live)</div>
+        <div class="dropdown-item" id="menuAppsScript" style="color:var(--accent2)">⚡ Apps Script live endpoint (instant)</div>
         <div class="dropdown-item" id="menuGSheet">🔗 Custom Google Sheets URL</div>
         <div class="dropdown-item" id="menuSharePoint">☁️ SharePoint / OneDrive</div>
         <div class="dropdown-item" id="menuDisconnect" style="display:none;color:var(--bad)">⛔ Disconnect & reset</div>
@@ -1449,7 +1451,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.7</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.8</span></footer>
 
 
 <script>
@@ -5492,6 +5494,190 @@ async function fetchFromPublishedSheets(){
 document.getElementById('emptyLiveBtn').addEventListener('click', fetchFromPublishedSheets);
 document.getElementById('menuLiveSheets').addEventListener('click', fetchFromPublishedSheets);
 
+// ============================================================
+// Apps Script live JSON endpoint — instant refresh (no CSV cache)
+// ============================================================
+function getAppsScriptUrl(){
+  try{ return localStorage.getItem('mis.appsScriptUrl') || ''; }catch(e){ return ''; }
+}
+function setAppsScriptUrl(u){
+  try{ localStorage.setItem('mis.appsScriptUrl', u); }catch(e){}
+}
+
+// Convert the 2D rows-array returned by Apps Script into our normalized row objects.
+// Reuses parseCSVToRows by re-encoding the array as CSV (cheap, ~10ms even for 10k rows).
+function appsScriptRowsToObjects(arr2d, sheetTag){
+  if(!Array.isArray(arr2d) || !arr2d.length) return [];
+  const csv = arr2d.map(row =>
+    row.map(cell => {
+      const s = (cell == null) ? '' : String(cell);
+      // Quote if contains comma, quote, or newline
+      if(s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1){
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }).join(',')
+  ).join('\n');
+  return parseCSVToRows(csv, sheetTag);
+}
+
+async function fetchFromAppsScript(opts){
+  opts = opts || {};
+  const silent = !!opts.silent;
+  let url = opts.url || getAppsScriptUrl();
+  if(!url){
+    url = prompt(
+      'Paste your Apps Script Web App URL.\n\n' +
+      'Format: https://script.google.com/macros/s/AKfycb…/exec\n\n' +
+      'See AppsScript-Live-Setup.md for one-time setup instructions.',
+      ''
+    );
+    if(!url) return;
+    url = url.trim();
+    if(!/^https:\/\/script\.google\.com\//i.test(url)){
+      toast('That doesn\'t look like an Apps Script Web App URL', 'error', 4000);
+      return;
+    }
+    setAppsScriptUrl(url);
+  }
+
+  const overlay = document.getElementById('loadingOverlay');
+  const loadText = document.getElementById('loadingText');
+  const loadSub  = document.getElementById('loadingSub');
+  const progress = document.getElementById('loadingProgress');
+  const statusEl = document.getElementById('fetchStatus');
+  if(overlay) overlay.classList.remove('hide');
+  if(loadText) loadText.textContent = 'Connecting to Apps Script…';
+  if(loadSub)  loadSub.textContent  = 'Reading sheets directly (bypasses cache)';
+  if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
+  if(statusEl) statusEl.classList.add('hide');
+
+  if(!silent) toast('Fetching live data via Apps Script…', 'info', 2500);
+
+  let resp, payload;
+  try{
+    resp = await fetch(url, { cache:'no-store', redirect:'follow' });
+  }catch(e){
+    if(overlay) overlay.classList.add('hide');
+    toast('Network error: ' + e.message, 'error', 5000);
+    return;
+  }
+  if(!resp.ok){
+    if(overlay) overlay.classList.add('hide');
+    toast('Apps Script returned HTTP ' + resp.status, 'error', 5000);
+    return;
+  }
+  try{
+    payload = await resp.json();
+  }catch(e){
+    if(overlay) overlay.classList.add('hide');
+    toast('Apps Script returned non-JSON. Check that "Who has access" is "Anyone".', 'error', 6000);
+    return;
+  }
+
+  if(!payload || payload.ok === false){
+    if(overlay) overlay.classList.add('hide');
+    toast('Apps Script error: ' + (payload && payload.error || 'unknown'), 'error', 6000);
+    return;
+  }
+
+  if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '20%'; }
+  if(loadText) loadText.textContent = 'Parsing ' + (payload.sheets || []).length + ' sheets…';
+
+  const allRows = [];
+  const sheetInfo = [];
+  const sheets = payload.sheets || [];
+  for(let i=0; i<sheets.length; i++){
+    const s = sheets[i];
+    if(s.error){ sheetInfo.push(s.tag + ' (' + s.error + ')'); continue; }
+    const rows = appsScriptRowsToObjects(s.data, s.tag);
+    rows.forEach(r => { r._source = 'Apps Script (live)'; r._sheet = s.tag; });
+    allRows.push(...rows);
+    sheetInfo.push(s.tag + ' (' + rows.length + ')');
+    if(progress){
+      const pct = 20 + Math.round(((i+1)/sheets.length) * 70);
+      progress.querySelector('.bar').style.width = pct + '%';
+    }
+    if(loadSub) loadSub.textContent = 'Loaded ' + (i+1) + '/' + sheets.length + ' sheets';
+  }
+
+  if(allRows.length){
+    const meta = {
+      sourceFile: 'Apps Script (live)',
+      sheet: sheetInfo.join(', '),
+      rowCount: allRows.length,
+      generatedAt: new Date().toLocaleString() + ' (server: ' + (payload.fetchedAt||'?') + ', ' + (payload.elapsedMs||0) + 'ms)',
+    };
+    if(loadText) loadText.textContent = 'Rendering dashboard…';
+    if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length + ' rows';
+    window._dashboardReload({ rows: allRows, meta });
+    document.getElementById('refreshBtn').style.display = '';
+    document.getElementById('refreshBtn').dataset.source = 'appsScript';
+    document.getElementById('menuDisconnect').style.display = '';
+    if(!silent) toast('Live data loaded: ' + allRows.length + ' rows (' + (payload.elapsedMs||0) + 'ms server)', 'success', 4500);
+  } else {
+    if(!silent) toast('Apps Script returned 0 rows. Check sheet IDs in the script.', 'warn', 5000);
+  }
+
+  setTimeout(() => {
+    if(overlay) overlay.classList.add('hide');
+    if(loadText) loadText.textContent = 'Loading dashboard…';
+    if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
+    if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
+  }, 600);
+}
+
+document.getElementById('menuAppsScript').addEventListener('click', () => {
+  // Show current URL (if any) and let user reset it via shift-click or by clearing
+  const cur = getAppsScriptUrl();
+  if(cur){
+    const next = prompt(
+      'Apps Script Web App URL is already set:\n\n' + cur +
+      '\n\n• OK = keep & fetch now\n• Edit URL = paste a new one\n• Empty = clear and re-prompt',
+      cur
+    );
+    if(next === null) return;
+    if(!next.trim()){ try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){} fetchFromAppsScript(); return; }
+    if(next.trim() !== cur) setAppsScriptUrl(next.trim());
+    fetchFromAppsScript({ url: next.trim() });
+  } else {
+    fetchFromAppsScript();
+  }
+});
+
+// Header refresh button — re-fetch from whatever source is active
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  const src = document.getElementById('refreshBtn').dataset.source;
+  if(src === 'appsScript'){
+    fetchFromAppsScript({ silent: false });
+  } else {
+    fetchFromPublishedSheets();
+  }
+});
+
+// Auto-set refresh button source after the published-sheets fetch
+(function(){
+  const _origPub = window.fetchFromPublishedSheets;
+  // Show refresh button after a successful published-sheets load too
+  const obs = new MutationObserver(()=>{
+    if(typeof RAW !== 'undefined' && RAW.length > 0 && document.getElementById('refreshBtn').style.display === 'none'){
+      document.getElementById('refreshBtn').style.display = '';
+      document.getElementById('refreshBtn').dataset.source = 'csv';
+    }
+  });
+  // Watch for changes to the meta header
+  const meta = document.getElementById('meta');
+  if(meta) obs.observe(meta, { childList: true, characterData: true, subtree: true });
+})();
+
+// On page load, if Apps Script URL is already configured, surface refresh button
+(function(){
+  if(getAppsScriptUrl()){
+    document.getElementById('refreshBtn').style.display = '';
+    document.getElementById('refreshBtn').dataset.source = 'appsScript';
+  }
+})();
+
 document.getElementById('menuGSheet').addEventListener('click', ()=>{
   // Show the setup in a simple prompt-based flow
   const urls = prompt(
@@ -5518,6 +5704,7 @@ document.getElementById('menuDisconnect').addEventListener('click', ()=>{
   // Clear all configs
   try{ localStorage.removeItem('mis_gsheet_config'); }catch(e){}
   try{ localStorage.removeItem('mis_sp_config'); }catch(e){}
+  try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){}
   // Stop auto-refresh timers
   if(gsheetState.timer){ clearInterval(gsheetState.timer); gsheetState.timer = null; }
   if(spState.timer){ clearInterval(spState.timer); spState.timer = null; }
@@ -5530,6 +5717,7 @@ document.getElementById('menuDisconnect').addEventListener('click', ()=>{
   document.getElementById('dashContent').style.display = 'none';
   document.getElementById('emptyState').style.display = '';
   document.getElementById('menuDisconnect').style.display = 'none';
+  document.getElementById('refreshBtn').style.display = 'none';
   toast('Disconnected. Upload a file or reconnect.', 'info');
 });
 
