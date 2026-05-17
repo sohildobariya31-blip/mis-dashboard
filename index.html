@@ -1721,7 +1721,7 @@ const state = {
   fx:{
     convert:true,            // ON by default — non-INR rows converted to INR using rates
     onlyINR:false,
-    rates:{                  // Default monthly avg rates (source: web averages)
+    rates:{                  // Default monthly avg rates (web sources: xe.com, wise.com)
       'USD':{
         '2025-04':85.10, '2025-05':85.45, '2025-06':85.80, '2025-07':86.20, '2025-08':86.55,
         '2025-09':86.90, '2025-10':87.30, '2025-11':87.70, '2025-12':88.10,
@@ -1730,12 +1730,12 @@ const state = {
       'RMB':{
         '2025-04':11.70, '2025-05':11.80, '2025-06':11.90, '2025-07':12.00, '2025-08':12.10,
         '2025-09':12.20, '2025-10':12.30, '2025-11':12.45, '2025-12':12.60,
-        '2026-01':12.75, '2026-02':12.90, '2026-03':13.10, '2026-04':13.50, '2026-05':13.90,
+        '2026-01':12.85, '2026-02':13.10, '2026-03':13.45, '2026-04':13.70, '2026-05':13.90,
       },
       'CNY':{
         '2025-04':11.70, '2025-05':11.80, '2025-06':11.90, '2025-07':12.00, '2025-08':12.10,
         '2025-09':12.20, '2025-10':12.30, '2025-11':12.45, '2025-12':12.60,
-        '2026-01':12.75, '2026-02':12.90, '2026-03':13.10, '2026-04':13.50, '2026-05':13.90,
+        '2026-01':12.85, '2026-02':13.10, '2026-03':13.45, '2026-04':13.70, '2026-05':13.90,
       },
     },
     dismissed:false,
@@ -2040,8 +2040,9 @@ function metricValueFn(metric){
     const cur = normalizeCurrency(r.currency, r);
     if(cur === 'INR') return v;
     if(state.fx.convert){
-      // Convert foreign currency to INR: amount × exchange rate
-      const rate = lookupRate(cur, r[state.dateBasis] || r.poDate);
+      // Convert using PO date or invoice date — never due date
+      const fxDate = r.poDate || r.invoiceDate;
+      const rate = lookupRate(cur, fxDate);
       if(rate && rate > 0) return v * rate;
       // no rate for this month: still try to convert with any available rate
       return v; // show raw (will be flagged in banner as missing rate)
@@ -2054,7 +2055,12 @@ function metricValueFn(metric){
 
 function normalizeCurrency(c, row){
   if(c != null && c !== ''){
-    return String(c).trim().toUpperCase();
+    let s = String(c).trim().toUpperCase();
+    // Common aliases
+    if(s === 'CNY' || s === 'YUAN' || s === '¥' || s === 'CNH' || s === 'RMB/CNY' || s === 'CNY/RMB') return 'RMB';
+    if(s === 'US$' || s === 'USDOLLAR' || s === 'US DOLLAR') return 'USD';
+    if(s === '₹' || s === 'INR.' || s === 'RUPEE' || s === 'RUPEES') return 'INR';
+    return s;
   }
   // Fallback: infer from COO if available
   if(row && row.coo){
@@ -3365,7 +3371,8 @@ function currencySummary(){
 function dataMonths(){
   const months = new Set();
   for(const r of RAW){
-    const d = r.poDate || r.invoiceDate || r.dueDate;
+    // Only PO and Invoice dates drive FX month lookup — not due date
+    const d = r.poDate || r.invoiceDate;
     if(d) months.add(String(d).slice(0,7));
   }
   return [...months].sort();
@@ -3881,13 +3888,15 @@ function computeDerivedFields(rows){
   // This uses the default exchange rates from state
   var defaultRates = {
     'USD':{'2025-04':85.10,'2025-05':85.45,'2025-06':85.80,'2025-07':86.20,'2025-08':86.55,'2025-09':86.90,'2025-10':87.30,'2025-11':87.70,'2025-12':88.10,'2026-01':88.60,'2026-02':89.20,'2026-03':90.50,'2026-04':92.80,'2026-05':94.40},
-    'RMB':{'2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.75,'2026-02':12.90,'2026-03':13.10,'2026-04':13.50,'2026-05':13.90},
+    'RMB':{'2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.85,'2026-02':13.10,'2026-03':13.45,'2026-04':13.70,'2026-05':13.90},
+    'CNY':{'2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.85,'2026-02':13.10,'2026-03':13.45,'2026-04':13.70,'2026-05':13.90},
+  };
     'CNY':{'2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.75,'2026-02':12.90,'2026-03':13.10,'2026-04':13.50,'2026-05':13.90},
   };
   
   for(var i = 0; i < rows.length; i++){
     var r = rows[i];
-    var cur = String(r.currency || 'INR').trim().toUpperCase();
+    var cur = normalizeCurrency(r.currency, r);
     var payable = r.payable || r.amount || 0;
     var basicAmt = r.amount || 0;
     
