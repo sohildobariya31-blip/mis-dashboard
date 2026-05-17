@@ -403,7 +403,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   transition:opacity .4s ease;backdrop-filter:blur(6px);
 }
-.loading-overlay.hide{opacity:0;pointer-events:none}
+.loading-overlay.hide{opacity:0;pointer-events:none;visibility:hidden}
 .loader-orb{
   position:relative;width:90px;height:90px;
 }
@@ -1385,7 +1385,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser.</footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17</span></footer>
 
 
 <script>
@@ -1419,10 +1419,15 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   window.addEventListener('load', fixTabTop);
   window.addEventListener('resize', fixTabTop);
   document.addEventListener('DOMContentLoaded', fixTabTop);
-  // Hide loading overlay once page is ready
-  window.addEventListener('load', function(){
-    setTimeout(function(){ var ov=document.getElementById('loadingOverlay'); if(ov) ov.classList.add('hide'); }, 500);
-  });
+  // Hide loading overlay once page is ready (with multiple fallbacks so it can never get stuck)
+  function hideOverlay(){
+    var ov=document.getElementById('loadingOverlay');
+    if(ov) ov.classList.add('hide');
+  }
+  window.addEventListener('load', function(){ setTimeout(hideOverlay, 400); });
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(hideOverlay, 1500); });
+  // Hard fallback after 5s no matter what (e.g. if a CDN script fails to load)
+  setTimeout(hideOverlay, 5000);
 
   // Check if Google Sheets or SharePoint config exists — if yes, skip upload screen
   var hasGSheetConfig = false;
