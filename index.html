@@ -399,15 +399,79 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 /* Loading overlay */
 .loading-overlay{
   position:fixed;inset:0;z-index:200;
-  background:var(--bg);
+  background:radial-gradient(ellipse at center, color-mix(in srgb, var(--card) 95%, transparent) 0%, var(--bg) 100%);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  transition:opacity .4s ease;
+  transition:opacity .4s ease;backdrop-filter:blur(6px);
 }
 .loading-overlay.hide{opacity:0;pointer-events:none}
+.loader-orb{
+  position:relative;width:90px;height:90px;
+}
+.loader-orb::before,.loader-orb::after{
+  content:"";position:absolute;inset:0;border-radius:50%;
+  border:3px solid transparent;
+}
+.loader-orb::before{
+  border-top-color:var(--accent);border-right-color:var(--accent2);
+  animation:spin 1.4s cubic-bezier(.5,.1,.5,.9) infinite;
+}
+.loader-orb::after{
+  border-bottom-color:var(--accent2);border-left-color:var(--accent);
+  inset:12px;animation:spin 1.8s cubic-bezier(.5,.1,.5,.9) reverse infinite;
+}
+.loader-orb .core{
+  position:absolute;inset:32px;border-radius:50%;
+  background:linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow:0 0 32px color-mix(in srgb, var(--accent) 60%, transparent);
+  animation:pulse2 1.6s ease infinite;
+}
 .loader{width:50px;height:50px;border:4px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{margin-top:16px;color:var(--muted);font-size:14px;animation:pulse2 1.5s ease infinite}
+.loading-text{margin-top:20px;color:var(--text);font-size:15px;font-weight:600;letter-spacing:.3px}
+.loading-sub{margin-top:4px;color:var(--muted);font-size:12px;animation:pulse2 1.5s ease infinite}
 @keyframes pulse2{0%,100%{opacity:.6}50%{opacity:1}}
+
+/* Progress bar */
+.loading-progress{
+  margin-top:18px;width:280px;max-width:80vw;
+  height:6px;background:var(--bg2);border-radius:99px;overflow:hidden;
+  border:1px solid var(--border);
+}
+.loading-progress .bar{
+  height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
+  background-size:200% 100%;
+  border-radius:99px;transition:width .35s ease;
+  animation:flow 2s linear infinite;
+}
+@keyframes flow{0%{background-position:0 0}100%{background-position:200% 0}}
+.loading-progress.indet .bar{
+  width:35% !important;
+  animation:slide 1.4s cubic-bezier(.6,.1,.4,.9) infinite, flow 2s linear infinite;
+}
+@keyframes slide{0%{transform:translateX(-120%)}100%{transform:translateX(380%)}}
+
+/* Per-sheet status list during fetch */
+.fetch-status{
+  margin-top:18px;width:340px;max-width:90vw;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:12px;font-size:12px;
+}
+.fetch-status .row{
+  display:flex;align-items:center;gap:10px;padding:6px 0;
+  border-bottom:1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+}
+.fetch-status .row:last-child{border-bottom:0}
+.fetch-status .ico{
+  width:18px;height:18px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.fetch-status .ico.spin{animation:spin 1s linear infinite;color:var(--accent)}
+.fetch-status .ico.ok{color:var(--good)}
+.fetch-status .ico.err{color:var(--bad)}
+.fetch-status .ico.wait{color:var(--muted)}
+.fetch-status .name{flex:1;color:var(--text);font-weight:500}
+.fetch-status .count{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.fetch-status.hide{display:none}
 
 /* FX warning banner (animated flowing stripe) */
 .fx-banner{
@@ -492,8 +556,11 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 
 <!-- Loading overlay -->
 <div class="loading-overlay" id="loadingOverlay">
-  <div class="loader"></div>
-  <div class="loading-text" id="loadingText">Loading dashboard...</div>
+  <div class="loader-orb"><div class="core"></div></div>
+  <div class="loading-text" id="loadingText">Loading dashboard…</div>
+  <div class="loading-sub" id="loadingSub">Preparing your workspace</div>
+  <div class="loading-progress indet" id="loadingProgress"><div class="bar"></div></div>
+  <div class="fetch-status hide" id="fetchStatus"></div>
 </div>
 
 <header>
@@ -1268,6 +1335,27 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
+<!-- Google Sheets picker modal -->
+<div class="modal-bg" id="gsPickerModal">
+  <div class="modal">
+    <h3>📡 Load from Google Sheets</h3>
+    <p>Pick which sheets to fetch live. Selecting fewer sheets makes loading faster.</p>
+    <div class="sheet-list" id="gsPickerList"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;font-size:12px">
+      <button class="btn ghost" id="gsPickAll" style="padding:5px 10px;font-size:11px">Select all</button>
+      <button class="btn ghost" id="gsPickNone" style="padding:5px 10px;font-size:11px">Select none</button>
+      <button class="btn ghost" id="gsPickBom" style="padding:5px 10px;font-size:11px">Only BOM</button>
+      <button class="btn ghost" id="gsPickOther" style="padding:5px 10px;font-size:11px">Only Other</button>
+      <button class="btn ghost" id="gsPick2627" style="padding:5px 10px;font-size:11px">Only 26-27</button>
+      <button class="btn ghost" id="gsPick2526" style="padding:5px 10px;font-size:11px">Only 25-26</button>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="gsPickCancel">Cancel</button>
+      <button class="btn" id="gsPickLoad">Fetch selected</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toasts -->
 <div class="toast-wrap" id="toastWrap"></div>
 
@@ -1463,8 +1551,18 @@ const META0 = (window.PURCHASE_DATA && window.PURCHASE_DATA.meta) || {};
 let RAW  = RAW0.slice();
 let META = Object.assign({}, META0);
 function setMetaText(){
-  document.getElementById('meta').textContent =
-    `Source: ${META.sourceFile || '-'} | Sheet: ${META.sheet || '-'} | Rows: ${META.rowCount || 0} | Generated: ${META.generatedAt || '-'}`;
+  const meta = document.getElementById('meta');
+  if(!meta) return;
+  let txt = `Source: ${META.sourceFile || '-'} | Sheet: ${META.sheet || '-'} | Rows: ${META.rowCount || 0} | Generated: ${META.generatedAt || '-'}`;
+  // If sheet filter active, show what's filtered
+  if(typeof state !== 'undefined' && state && state.sheetFilter && state.sheetFilter !== 'all' && Array.isArray(RAW) && RAW.length){
+    try{
+      const labels = {bom:'BOM only',other:'Other material only',bom2627:'BOM 26-27',bom2526:'BOM 25-26',other2627:'Other 26-27',other2526:'Other 25-26'};
+      const filtered = applyFiltersExceptDate(RAW);
+      txt += ` | View: ${labels[state.sheetFilter] || state.sheetFilter} (${filtered.length} rows)`;
+    }catch(e){}
+  }
+  meta.textContent = txt;
 }
 setMetaText();
 
@@ -1623,8 +1721,30 @@ function uniq(arr){ return [...new Set(arr.filter(v=>v!=null && v!==''))].sort((
 const fgroupsEl = document.getElementById('fgroups');
 function buildFilterGroups(){
   fgroupsEl.innerHTML = '';
+  // Source rows: respect sheet filter so options only show items relevant to selected sheet(s)
+  let sourceRows = RAW;
+  try{
+    if(typeof state !== 'undefined' && state && state.sheetFilter && state.sheetFilter !== 'all'){
+      const before = RAW.length;
+      // Apply only sheet filter (not dimension filters, since dimension filters are what we are populating)
+      sourceRows = RAW.filter(r=>{
+        const sheet = (r._sheet || '').toLowerCase();
+        const source = (r._source || '').toLowerCase();
+        const combined = sheet + ' ' + source;
+        switch(state.sheetFilter){
+          case 'bom': return sheet.indexOf('bom') !== -1;
+          case 'other': return sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1;
+          case 'bom2627': return sheet.indexOf('bom') !== -1 && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
+          case 'bom2526': return sheet.indexOf('bom') !== -1 && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
+          case 'other2627': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
+          case 'other2526': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
+          default: return true;
+        }
+      });
+    }
+  }catch(e){}
   FILTER_GROUPS.forEach(g=>{
-    const values = uniq(RAW.map(r=>r[g.key] ?? (g.missingLabel || null)));
+    const values = uniq(sourceRows.map(r=>r[g.key] ?? (g.missingLabel || null)));
     const el = document.createElement('div');
     el.className = 'fgroup'; el.dataset.key = g.key;
     el.innerHTML = `
@@ -2832,7 +2952,16 @@ function render(){
 /* =========================================================================
    Listeners
    ========================================================================= */
-['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric','sheetFilter'].forEach(id=>document.getElementById(id).addEventListener('change', render));
+['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ render(); setMetaText(); }));
+document.getElementById('sheetFilter').addEventListener('change', ()=>{
+  // Clear stale dimension selections (some may not exist in the new view)
+  if(typeof state !== 'undefined' && state && state.filters){
+    Object.keys(state.filters).forEach(k=>{ try{ state.filters[k].clear(); }catch(e){} });
+  }
+  buildFilterGroups();
+  render();
+  setMetaText();
+});
 document.getElementById('tblSearch').addEventListener('input', renderTableBody);
 document.getElementById('tblPay').addEventListener('change', renderTableBody);
 
@@ -3806,7 +3935,13 @@ function computeDerivedFields(rows){
         for(const sn of sheetsToLoad){
           const parsed = parseSheetLocal(wb, sn, file.name);
           if(parsed && parsed.rows.length > 0){
-            parsed.rows.forEach(r => { r._source = file.name; r._sheet = sn; });
+            // Make _sheet include year suffix from filename so sheet filter (BOM 26-27 / 25-26) works
+            const fn = String(file.name||'').toLowerCase();
+            let yearSuffix = '';
+            if(fn.indexOf('26-27') !== -1 || fn.indexOf('2627') !== -1) yearSuffix = ' 26-27';
+            else if(fn.indexOf('25-26') !== -1 || fn.indexOf('2526') !== -1) yearSuffix = ' 25-26';
+            const tagged = sn + yearSuffix;
+            parsed.rows.forEach(r => { r._source = file.name; r._sheet = tagged; });
             allParsed.push({rows: parsed.rows, fileName: file.name, sheetName: sn});
           }
         }
@@ -4932,50 +5067,187 @@ document.getElementById('emptyGSheetBtn').addEventListener('click', ()=>{
   const panel = document.getElementById('gsheetSetup');
   panel.style.display = panel.style.display === 'none' ? '' : 'none';
 });
-// "Load from Google Sheets (live)" — fetch from hardcoded published URLs
-function fetchFromPublishedSheets(){
-  // Show loading
+// "Load from Google Sheets (live)" — show picker, then parallel-fetch selected sheets
+const PUBLISHED_CSVS = [
+  {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMHtEn6jxMkSxr0qgvihp4A22Qq8Z2hlcyMo3b9-tM1iaAWoeey_fK6wIZEUHWFhEXN2r8WRi9JW2I/pub?gid=495463294&single=true&output=csv', name:'BOM 26-27', kind:'bom', year:'26-27'},
+  {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMHtEn6jxMkSxr0qgvihp4A22Qq8Z2hlcyMo3b9-tM1iaAWoeey_fK6wIZEUHWFhEXN2r8WRi9JW2I/pub?gid=1691872829&single=true&output=csv', name:'Other material 26-27', kind:'other', year:'26-27'},
+  {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSGx8nrYKbAGHVaLf83MEdInYzCGt6P7aDuz9Hh_c6cQMfhBq7jb0c_j-LvmtkS_k9TuRdKYPMU3BCk/pub?gid=55522287&single=true&output=csv', name:'BOM 25-26', kind:'bom', year:'25-26'},
+  {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSGx8nrYKbAGHVaLf83MEdInYzCGt6P7aDuz9Hh_c6cQMfhBq7jb0c_j-LvmtkS_k9TuRdKYPMU3BCk/pub?gid=2048397162&single=true&output=csv', name:'Other material 25-26', kind:'other', year:'25-26'},
+];
+
+function pickGoogleSheets(){
+  return new Promise(function(resolve, reject){
+    var modal = document.getElementById('gsPickerModal');
+    var list  = document.getElementById('gsPickerList');
+    if(!modal || !list){ resolve(PUBLISHED_CSVS.map(function(_,i){return i;})); return; }
+    list.innerHTML = '';
+    // Default: remember last selection
+    var saved;
+    try{ saved = JSON.parse(localStorage.getItem('mis.gsPicker')||'null'); }catch(e){ saved=null; }
+    var selected = new Set();
+    if(Array.isArray(saved) && saved.length){
+      saved.forEach(function(i){ if(i>=0 && i<PUBLISHED_CSVS.length) selected.add(i); });
+    } else {
+      PUBLISHED_CSVS.forEach(function(_,i){ selected.add(i); });
+    }
+
+    function refresh(){
+      list.innerHTML = '';
+      PUBLISHED_CSVS.forEach(function(s, i){
+        var item = document.createElement('div');
+        item.className = 'sheet-item' + (selected.has(i) ? ' selected' : '');
+        var icon = s.kind === 'bom' ? '📋' : '📦';
+        item.innerHTML = '<span class="name">'+icon+' '+s.name+'</span><span class="info">'+s.year+'</span>';
+        item.addEventListener('click', function(){
+          if(selected.has(i)){ selected.delete(i); } else { selected.add(i); }
+          refresh();
+        });
+        list.appendChild(item);
+      });
+    }
+    refresh();
+
+    function setOnly(filterFn){
+      selected.clear();
+      PUBLISHED_CSVS.forEach(function(s,i){ if(filterFn(s)) selected.add(i); });
+      refresh();
+    }
+    var allBtn = document.getElementById('gsPickAll');
+    var noneBtn = document.getElementById('gsPickNone');
+    var bomBtn = document.getElementById('gsPickBom');
+    var otherBtn = document.getElementById('gsPickOther');
+    var btn2627 = document.getElementById('gsPick2627');
+    var btn2526 = document.getElementById('gsPick2526');
+    var loadBtn = document.getElementById('gsPickLoad');
+    var cancelBtn = document.getElementById('gsPickCancel');
+
+    var onAll    = function(){ setOnly(function(){ return true; }); };
+    var onNone   = function(){ setOnly(function(){ return false; }); };
+    var onBom    = function(){ setOnly(function(s){ return s.kind==='bom'; }); };
+    var onOther  = function(){ setOnly(function(s){ return s.kind==='other'; }); };
+    var on2627   = function(){ setOnly(function(s){ return s.year==='26-27'; }); };
+    var on2526   = function(){ setOnly(function(s){ return s.year==='25-26'; }); };
+
+    function cleanup(){
+      modal.classList.remove('show');
+      allBtn.removeEventListener('click', onAll);
+      noneBtn.removeEventListener('click', onNone);
+      bomBtn.removeEventListener('click', onBom);
+      otherBtn.removeEventListener('click', onOther);
+      btn2627.removeEventListener('click', on2627);
+      btn2526.removeEventListener('click', on2526);
+      loadBtn.removeEventListener('click', onLoad);
+      cancelBtn.removeEventListener('click', onCancel);
+    }
+    var onLoad = function(){
+      if(selected.size===0){ toast('Select at least one sheet', 'warn'); return; }
+      var arr = [...selected].sort();
+      try{ localStorage.setItem('mis.gsPicker', JSON.stringify(arr)); }catch(e){}
+      cleanup(); resolve(arr);
+    };
+    var onCancel = function(){ cleanup(); reject(new Error('cancelled')); };
+
+    allBtn.addEventListener('click', onAll);
+    noneBtn.addEventListener('click', onNone);
+    bomBtn.addEventListener('click', onBom);
+    otherBtn.addEventListener('click', onOther);
+    btn2627.addEventListener('click', on2627);
+    btn2526.addEventListener('click', on2526);
+    loadBtn.addEventListener('click', onLoad);
+    cancelBtn.addEventListener('click', onCancel);
+
+    modal.classList.add('show');
+  });
+}
+
+async function fetchFromPublishedSheets(){
+  // Step 1: ask user which sheets
+  var pickedIdx;
+  try{ pickedIdx = await pickGoogleSheets(); }
+  catch(e){ return; /* cancelled */ }
+  var sheetsToFetch = pickedIdx.map(function(i){ return PUBLISHED_CSVS[i]; });
+  if(!sheetsToFetch.length) return;
+
+  // Step 2: prepare progress UI
   var overlay = document.getElementById('loadingOverlay');
   var loadText = document.getElementById('loadingText');
-  if(overlay){ overlay.classList.remove('hide'); }
-  if(loadText) loadText.textContent = 'Fetching from Google Sheets...';
-  var PUBLISHED_CSVS = [
-    {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMHtEn6jxMkSxr0qgvihp4A22Qq8Z2hlcyMo3b9-tM1iaAWoeey_fK6wIZEUHWFhEXN2r8WRi9JW2I/pub?gid=495463294&single=true&output=csv', name:'BOM 26-27'},
-    {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMHtEn6jxMkSxr0qgvihp4A22Qq8Z2hlcyMo3b9-tM1iaAWoeey_fK6wIZEUHWFhEXN2r8WRi9JW2I/pub?gid=1691872829&single=true&output=csv', name:'Other material 26-27'},
-    {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSGx8nrYKbAGHVaLf83MEdInYzCGt6P7aDuz9Hh_c6cQMfhBq7jb0c_j-LvmtkS_k9TuRdKYPMU3BCk/pub?gid=55522287&single=true&output=csv', name:'BOM 25-26'},
-    {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSGx8nrYKbAGHVaLf83MEdInYzCGt6P7aDuz9Hh_c6cQMfhBq7jb0c_j-LvmtkS_k9TuRdKYPMU3BCk/pub?gid=2048397162&single=true&output=csv', name:'Other material 25-26'},
-  ];
-  toast('Fetching live data from Google Sheets...', 'info', 3000);
-  (async function(){
-    var allRows = [];
-    var sheetInfo = [];
-    for(var i=0; i<PUBLISHED_CSVS.length; i++){
-      var sheet = PUBLISHED_CSVS[i];
-      try{
-        var resp = await fetch(sheet.url);
-        if(!resp.ok){ toast('Failed: ' + sheet.name + ' (HTTP ' + resp.status + ')', 'error'); continue; }
-        var csv = await resp.text();
-        var rows = parseCSVToRows(csv, sheet.name);
-        if(rows.length > 0){
-          rows.forEach(function(r){ r._source = 'Google Sheets'; r._sheet = sheet.name; });
-          allRows = allRows.concat(rows);
-          sheetInfo.push(sheet.name + '(' + rows.length + ')');
-        } else {
-          sheetInfo.push(sheet.name + '(0)');
-        }
-      }catch(e){ console.error(e); toast('Error fetching ' + sheet.name + ': ' + e.message, 'error'); }
+  var loadSub  = document.getElementById('loadingSub');
+  var progress = document.getElementById('loadingProgress');
+  var statusEl = document.getElementById('fetchStatus');
+  if(overlay) overlay.classList.remove('hide');
+  if(loadText) loadText.textContent = 'Fetching from Google Sheets';
+  if(loadSub)  loadSub.textContent  = '0 of ' + sheetsToFetch.length + ' sheets loaded…';
+  if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '2%'; }
+  if(statusEl){
+    statusEl.classList.remove('hide');
+    statusEl.innerHTML = sheetsToFetch.map(function(s, i){
+      return '<div class="row" data-idx="'+i+'"><span class="ico wait">⏳</span><span class="name">'+s.name+'</span><span class="count">queued</span></div>';
+    }).join('');
+  }
+
+  function setRow(idx, ico, iconCls, count){
+    if(!statusEl) return;
+    var row = statusEl.querySelector('.row[data-idx="'+idx+'"]');
+    if(!row) return;
+    row.querySelector('.ico').className = 'ico ' + iconCls;
+    row.querySelector('.ico').textContent = ico;
+    if(count != null) row.querySelector('.count').textContent = count;
+  }
+
+  toast('Fetching ' + sheetsToFetch.length + ' sheet(s) in parallel…', 'info', 2500);
+
+  // Step 3: parallel fetch with per-sheet progress
+  var done = 0;
+  var allRows = [];
+  var sheetInfo = [];
+
+  function updateProgress(){
+    done++;
+    if(loadSub)  loadSub.textContent  = done + ' of ' + sheetsToFetch.length + ' sheets loaded…';
+    if(progress){
+      var pct = Math.round((done / sheetsToFetch.length) * 100);
+      progress.querySelector('.bar').style.width = Math.max(pct, 4) + '%';
     }
-    if(allRows.length > 0){
-      var meta = { sourceFile:'Google Sheets (live)', sheet:sheetInfo.join(', '), rowCount:allRows.length, generatedAt:new Date().toLocaleString() };
-      window._dashboardReload({rows:allRows, meta:meta});
-      toast('Loaded ' + allRows.length + ' rows: ' + sheetInfo.join(', '), 'success', 5000);
-    } else {
-      toast('No data loaded. Check if sheets are published correctly.', 'warn');
-    }
-    // Hide loading overlay
-    var ov = document.getElementById('loadingOverlay');
-    if(ov) ov.classList.add('hide');
-  })();
+  }
+
+  var promises = sheetsToFetch.map(function(sheet, i){
+    setRow(i, '⟳', 'spin', 'fetching…');
+    return fetch(sheet.url, {cache:'no-store'}).then(function(resp){
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      return resp.text();
+    }).then(function(csv){
+      var rows = parseCSVToRows(csv, sheet.name);
+      rows.forEach(function(r){ r._source = 'Google Sheets'; r._sheet = sheet.name; });
+      allRows = allRows.concat(rows);
+      sheetInfo.push(sheet.name + ' (' + rows.length + ')');
+      setRow(i, '✓', 'ok', rows.length + ' rows');
+      updateProgress();
+    }).catch(function(err){
+      console.error('GSheet fetch failed:', sheet.name, err);
+      sheetInfo.push(sheet.name + ' (failed)');
+      setRow(i, '✕', 'err', err.message || 'failed');
+      updateProgress();
+    });
+  });
+
+  await Promise.all(promises);
+
+  // Step 4: hand off to dashboard
+  if(allRows.length > 0){
+    var meta = { sourceFile:'Google Sheets (live)', sheet:sheetInfo.join(', '), rowCount:allRows.length, generatedAt:new Date().toLocaleString() };
+    if(loadText) loadText.textContent = 'Rendering dashboard…';
+    if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length + ' rows';
+    window._dashboardReload({rows:allRows, meta:meta});
+    toast('Loaded ' + allRows.length + ' rows from ' + sheetsToFetch.length + ' sheet(s)', 'success', 4500);
+  } else {
+    toast('No data loaded. Check that sheets are published as CSV.', 'warn');
+  }
+
+  // Hide overlay after a small delay so user sees completion
+  setTimeout(function(){
+    if(overlay) overlay.classList.add('hide');
+    if(statusEl) statusEl.classList.add('hide');
+  }, 700);
 }
 
 document.getElementById('emptyLiveBtn').addEventListener('click', fetchFromPublishedSheets);
