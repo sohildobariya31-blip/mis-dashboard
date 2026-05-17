@@ -1388,7 +1388,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.5</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.6</span></footer>
 
 
 <script>
@@ -5469,6 +5469,55 @@ function parseCSVToRows(csvText, sheetName){
   const DATES = new Set(['poDate','invoiceDate','dueDate','boeDate','wrDate']);
   const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
 
+  // Parse a date string handling DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY (US), and Excel serial numbers
+  function parseDate(s){
+    if(!s) return null;
+    const str = String(s).trim();
+    if(!str || str === '-' || str === '—') return null;
+    // Already ISO YYYY-MM-DD
+    let m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if(m){ return m[1] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[3]).padStart(2,'0'); }
+    // DD-MM-YYYY or DD/MM/YYYY (Indian standard)
+    m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(m){
+      let d = parseInt(m[1],10), mo = parseInt(m[2],10), y = parseInt(m[3],10);
+      // If first part > 12 it must be the day. If second part > 12 it must be the day → swap.
+      if(mo > 12 && d <= 12){ const t = d; d = mo; mo = t; }
+      if(d>=1 && d<=31 && mo>=1 && mo<=12 && y >= 1900){
+        return y + '-' + String(mo).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+      }
+    }
+    // Excel serial number (e.g. 45749 = some date)
+    if(/^\d+(\.\d+)?$/.test(str)){
+      const n = parseFloat(str);
+      if(n > 25569 && n < 60000){
+        const dn = Math.round((n - 25569) * 86400 * 1000);
+        const dt = new Date(dn);
+        return dt.getUTCFullYear() + '-' + String(dt.getUTCMonth()+1).padStart(2,'0') + '-' + String(dt.getUTCDate()).padStart(2,'0');
+      }
+    }
+    // Fallback to Date.parse
+    const t = Date.parse(str);
+    if(!isNaN(t)){
+      const dt = new Date(t);
+      return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+    }
+    return null;
+  }
+
+  // Parse a numeric cell — handle "  1,000.00 ", "  -   ", "18%", null
+  function parseNum(v){
+    if(v == null) return null;
+    let s = String(v).trim();
+    if(!s || s === '-' || s === '—') return null;
+    s = s.replace(/[, ]/g, '');
+    let pct = false;
+    if(s.endsWith('%')){ pct = true; s = s.slice(0, -1); }
+    const n = parseFloat(s);
+    if(isNaN(n)) return null;
+    return pct ? n / 100 : n;
+  }
+
   // Parse CSV (handle quoted fields)
   const lines = [];
   let current = '', inQuote = false;
@@ -5516,15 +5565,14 @@ function parseCSVToRows(csvText, sheetName){
     for(const [idxStr, key] of Object.entries(headerMap)){
       let v = cells[+idxStr];
       if(v === '' || v == null){ rec[key] = null; continue; }
+      const trimmed = String(v).trim();
+      if(trimmed === '' || trimmed === '-' || trimmed === '—'){ rec[key] = null; continue; }
       if(DATES.has(key)){
-        // Try parsing date
-        const t = Date.parse(v);
-        v = !isNaN(t) ? new Date(t).toISOString().slice(0,10) : null;
+        v = parseDate(v);
       } else if(NUMERIC.has(key)){
-        const n = parseFloat(v.replace(/[, ]/g,''));
-        v = isNaN(n) ? null : n;
+        v = parseNum(v);
       } else {
-        v = v || null;
+        v = trimmed || null;
       }
       rec[key] = v;
       if(v != null && v !== '') nonEmpty = true;
@@ -5541,6 +5589,14 @@ function parseCSVToRows(csvText, sheetName){
         if(sup.includes('zhonghuan')) rec.currency = 'RMB';
         else rec.currency = 'USD';
       }
+    }
+    // Normalize currency aliases (RMB/CNY → RMB, EURO → EUR, POUND → GBP)
+    if(rec.currency){
+      const cu = String(rec.currency).trim().toUpperCase();
+      if(cu === 'CNY' || cu === 'YUAN' || cu === 'RMB/CNY' || cu === 'CNY/RMB' || cu === 'CNH') rec.currency = 'RMB';
+      else if(cu === 'EURO') rec.currency = 'EUR';
+      else if(cu === 'POUND') rec.currency = 'GBP';
+      else rec.currency = cu;
     }
     rec._source = 'Google Sheets';
     rec._sheet = sheetName;
