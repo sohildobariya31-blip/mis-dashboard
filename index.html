@@ -820,8 +820,9 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
         <div class="dropdown-item" id="menuUpload">📂 Upload Excel file(s)</div>
         <div class="dropdown-item" id="menuLiveSheets" style="color:var(--good)">🔄 Load from Google Sheets (live)</div>
         <div class="dropdown-item" id="menuAppsScript" style="color:var(--accent2)">⚡ Apps Script live endpoint (instant)</div>
+        <div class="dropdown-item" id="menuSharePointLive" style="color:var(--accent2)">☁️ SharePoint (live via Apps Script)</div>
         <div class="dropdown-item" id="menuGSheet">🔗 Custom Google Sheets URL</div>
-        <div class="dropdown-item" id="menuSharePoint">☁️ SharePoint / OneDrive</div>
+        <div class="dropdown-item" id="menuSharePoint">☁️ SharePoint / OneDrive (direct)</div>
         <div class="dropdown-item" id="menuDisconnect" style="display:none;color:var(--bad)">⛔ Disconnect & reset</div>
       </div>
     </div>
@@ -871,9 +872,10 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:16px 0">
         <button class="btn" id="emptyUploadBtn2" style="font-size:15px;padding:12px 20px">📂 Upload Excel file(s)</button>
         <button class="btn" id="emptyAppsScriptBtn" style="font-size:15px;padding:12px 20px;background:linear-gradient(135deg,#a855f7,#22d3ee)">⚡ Apps Script (live, instant)</button>
+        <button class="btn" id="emptySharePointLiveBtn" style="font-size:15px;padding:12px 20px;background:linear-gradient(135deg,#0078d4,#22d3ee)">☁️ SharePoint (live, instant)</button>
         <button class="btn" id="emptyLiveBtn" style="font-size:15px;padding:12px 20px;background:linear-gradient(135deg,#22c55e,#14b8a6)">🔄 Load from Google Sheets (CSV)</button>
         <button class="btn secondary" id="emptyGSheetBtn" style="font-size:15px;padding:12px 20px">🔗 Custom Google Sheets URL</button>
-        <button class="btn secondary" id="emptySharePointBtn" style="font-size:15px;padding:12px 20px">☁️ SharePoint / OneDrive</button>
+        <button class="btn secondary" id="emptySharePointBtn" style="font-size:15px;padding:12px 20px">☁️ SharePoint / OneDrive (direct)</button>
       </div>
 
       <!-- SharePoint setup panel -->
@@ -1632,7 +1634,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.13</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.14</span></footer>
 
 
 <script>
@@ -6054,7 +6056,9 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   btn.classList.add('spinning');
   setTimeout(() => btn.classList.remove('spinning'), 1200);
   if(src === 'appsScript'){
-    fetchFromAppsScript({ silent: false });
+    fetchFromAppsScript({ silent: true });
+  } else if(src === 'spAppsScript'){
+    fetchFromSharePointAppsScript({ silent: true });
   } else {
     fetchFromPublishedSheets();
   }
@@ -6080,6 +6084,263 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
   if(getAppsScriptUrls().length){
     const btn = document.getElementById('refreshBtn');
     if(btn){ btn.style.display = ''; btn.dataset.source = 'appsScript'; }
+  }
+})();
+
+// ============================================================
+// SharePoint live (via Apps Script proxy) — instant fetch with no CORS issues.
+// User pastes their SharePoint Apps Script Web App URL once; dashboard
+// remembers it. Same UX as the Google Sheets Apps Script flow.
+// ============================================================
+function getSharePointAppsScriptUrls(){
+  try{
+    const raw = localStorage.getItem('mis.spAppsScriptUrls');
+    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length) return arr.filter(Boolean); }
+  }catch(e){}
+  return [];
+}
+function setSharePointAppsScriptUrls(arr){
+  try{ localStorage.setItem('mis.spAppsScriptUrls', JSON.stringify(arr)); }catch(e){}
+}
+
+function promptForSpAppsScriptUrls(prefill){
+  const lines = (prefill && prefill.length ? prefill : ['']).join('\n');
+  const txt = prompt(
+    'Paste your SharePoint Apps Script Web App URL — one per line.\n\n' +
+    'Setup:\n' +
+    '1. Open script.google.com → New project\n' +
+    '2. Paste contents of AppsScript-SharePointJSON.js (in this repo)\n' +
+    '3. Edit SOURCES with your SharePoint share links\n' +
+    '4. Add Drive API service\n' +
+    '5. Deploy as Web app → "Anyone" access\n' +
+    '6. Paste the deployment URL here\n\n' +
+    'See AppsScript-SharePoint-Setup.md for full instructions.',
+    lines
+  );
+  if(!txt) return null;
+  const urls = txt.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  for(const u of urls){
+    if(!/^https:\/\/script\.google\.com\//i.test(u)){
+      toast('Not an Apps Script URL: ' + u.slice(0,60), 'error', 5000);
+      return null;
+    }
+  }
+  return urls;
+}
+
+async function fetchFromSharePointAppsScript(opts){
+  opts = opts || {};
+  const silent = !!opts.silent;
+  let urls = opts.urls || getSharePointAppsScriptUrls();
+  if(!urls.length){
+    urls = promptForSpAppsScriptUrls([]);
+    if(!urls || !urls.length) return;
+    setSharePointAppsScriptUrls(urls);
+  }
+
+  // Show sheet picker first (skip if silent — used by Refresh button).
+  // Since we don't know the actual tags until fetch, do a probe call to get the sheet list.
+  let acceptedTags = null;
+  if(!silent){
+    const probeStatus = (urls.length === 1) ? 'Probing endpoint…' : 'Probing ' + urls.length + ' endpoints…';
+    toast(probeStatus, 'info', 3000);
+    try{
+      const probes = await Promise.all(urls.map(async u => {
+        try{
+          const r = await fetch(u, { cache:'no-store', redirect:'follow' });
+          if(!r.ok) return { url: u, error: 'HTTP ' + r.status };
+          const j = await r.json();
+          return { url: u, payload: j };
+        }catch(e){ return { url: u, error: e.message }; }
+      }));
+      // Build picker items from probe results
+      const items = [];
+      probes.forEach(p => {
+        if(p.error){
+          items.push({ name: '⚠ ' + p.url.slice(-12) + ': ' + p.error, kind:'other', url: p.url, _error: true });
+          return;
+        }
+        (p.payload.sheets || []).forEach(s => {
+          if(s.error){
+            items.push({ name: s.tag + ' (' + s.error + ')', kind:'other', url: p.url, tag: s.tag, _error: true });
+          } else {
+            const year = (s.tag.match(/(\d{2}-\d{2})/) || [])[1] || null;
+            const kind = /bom/i.test(s.tag) ? 'bom' : (/other|material/i.test(s.tag) ? 'other' : null);
+            items.push({ name: s.tag, year: year, kind: kind, url: p.url, tag: s.tag, rows: s.rows, cols: s.cols });
+          }
+        });
+      });
+      if(!items.length){
+        toast('SharePoint Apps Script returned no sheets. Check Logs in the script editor.', 'error', 5500);
+        return;
+      }
+      let picked;
+      try{
+        picked = await pickSheetsFromList(items, {
+          title: '☁️ Load via SharePoint (Apps Script proxy)',
+          subtitle: 'Pick which sheets to load. Routed through your Apps Script for CORS-free access.',
+          storageKey: 'mis.spAppsScriptPicker',
+        });
+      }catch(e){ return; }
+      acceptedTags = new Set(picked.map(i => items[i].tag).filter(Boolean));
+      // Reduce urls to only those that have at least one selected sheet
+      const usedUrls = new Set(picked.map(i => items[i].url));
+      urls = urls.filter(u => usedUrls.has(u));
+      if(!urls.length || !acceptedTags.size) return;
+    }catch(e){
+      console.error('SharePoint probe failed:', e);
+      toast('Probe failed: ' + e.message, 'error', 5000);
+      return;
+    }
+  }
+
+  const overlay = document.getElementById('loadingOverlay');
+  const loadText = document.getElementById('loadingText');
+  const loadSub  = document.getElementById('loadingSub');
+  const progress = document.getElementById('loadingProgress');
+  const statusEl = document.getElementById('fetchStatus');
+
+  if(overlay) overlay.classList.remove('hide');
+  if(loadText) loadText.textContent = '☁️ Fetching from SharePoint';
+  if(loadSub)  loadSub.textContent  = 'Routing through ' + urls.length + ' Apps Script endpoint' + (urls.length > 1 ? 's' : '') + '…';
+  if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '4%'; }
+  if(statusEl){
+    statusEl.classList.remove('hide');
+    statusEl.innerHTML = urls.map(function(u, i){
+      const short = u.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 22) + '…';
+      return '<div class="row" data-idx="'+i+'"><span class="ico spin">⟳</span><span class="name">'+short+'</span><span class="count">connecting…</span></div>';
+    }).join('');
+  }
+
+  function setRow(idx, ico, iconCls, count){
+    if(!statusEl) return;
+    const row = statusEl.querySelector('.row[data-idx="'+idx+'"]');
+    if(!row) return;
+    row.querySelector('.ico').className = 'ico ' + iconCls;
+    row.querySelector('.ico').textContent = ico;
+    if(count != null) row.querySelector('.count').textContent = count;
+  }
+
+  const t0 = performance.now();
+  const allRows = [];
+  const sheetInfo = [];
+  let totalServerMs = 0;
+  let done = 0;
+
+  // SharePoint endpoints can be slow (15-25s). Use longer timeout.
+  const TIMEOUT_MS = 60000;
+
+  function fetchWithTimeout(url, ms){
+    const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
+    const fetchOpts = { cache:'no-store', redirect:'follow' };
+    if(ctrl) fetchOpts.signal = ctrl.signal;
+    return fetch(url, fetchOpts).finally(() => { if(timer) clearTimeout(timer); });
+  }
+
+  // Live elapsed counter
+  const elapsedTimer = setInterval(() => {
+    const sec = ((performance.now() - t0) / 1000).toFixed(1);
+    statusEl && statusEl.querySelectorAll('.row').forEach(row => {
+      const ico = row.querySelector('.ico');
+      const count = row.querySelector('.count');
+      if(ico && ico.classList.contains('spin') && count){
+        count.textContent = 'connecting · ' + sec + 's';
+      }
+    });
+    if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints · ' + sec + 's elapsed';
+  }, 250);
+
+  const promises = urls.map(async function(url, i){
+    try{
+      const resp = await fetchWithTimeout(url, TIMEOUT_MS);
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const payload = await resp.json();
+      if(!payload || payload.ok === false) throw new Error(payload && payload.error || 'bad payload');
+      const sheets = payload.sheets || [];
+      let rowsHere = 0;
+      for(const s of sheets){
+        if(s.error){ sheetInfo.push(s.tag + ' (' + s.error + ')'); continue; }
+        if(acceptedTags && !acceptedTags.has(s.tag)) continue;
+        const rs = appsScriptRowsToObjects(s.data, s.tag);
+        rs.forEach(r => { r._source = 'SharePoint (live)'; r._sheet = s.tag; });
+        allRows.push(...rs);
+        sheetInfo.push(s.tag + ' (' + rs.length + ')');
+        rowsHere += rs.length;
+      }
+      totalServerMs = Math.max(totalServerMs, payload.elapsedMs || 0);
+      setRow(i, '✓', 'ok', rowsHere + ' rows · ' + (payload.elapsedMs||0) + 'ms');
+    }catch(e){
+      console.error('SharePoint Apps Script fetch failed:', url, e);
+      const msg = (e.name === 'AbortError') ? 'timeout (>60s)' : (e.message || 'failed');
+      setRow(i, '✕', 'err', msg);
+    }
+    done++;
+    if(progress){
+      const pct = 4 + Math.round((done/urls.length) * 90);
+      progress.querySelector('.bar').style.width = pct + '%';
+    }
+  });
+
+  await Promise.all(promises);
+  clearInterval(elapsedTimer);
+  const totalMs = Math.round(performance.now() - t0);
+
+  if(allRows.length){
+    const meta = {
+      sourceFile: 'SharePoint (live)',
+      sheet: sheetInfo.join(', '),
+      rowCount: allRows.length,
+      generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
+    };
+    if(loadText) loadText.textContent = 'Rendering dashboard…';
+    if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
+    if(progress) progress.querySelector('.bar').style.width = '100%';
+    window._dashboardReload({ rows: allRows, meta });
+    document.getElementById('refreshBtn').style.display = '';
+    document.getElementById('refreshBtn').dataset.source = 'spAppsScript';
+    document.getElementById('menuDisconnect').style.display = '';
+    if(!silent) toast('☁️ SharePoint live: ' + allRows.length.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
+  } else {
+    if(!silent) toast('SharePoint Apps Script returned 0 rows. Check the script Logs.', 'warn', 5500);
+  }
+
+  setTimeout(() => {
+    if(overlay) overlay.classList.add('hide');
+    if(statusEl) statusEl.classList.add('hide');
+    if(loadText) loadText.textContent = 'Loading dashboard…';
+    if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
+    if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
+  }, 800);
+}
+
+// Wire up the new menu item and empty-state button
+document.getElementById('menuSharePointLive').addEventListener('click', () => {
+  if(window.event && window.event.shiftKey){
+    const cur = getSharePointAppsScriptUrls();
+    const next = promptForSpAppsScriptUrls(cur);
+    if(next === null) return;
+    if(!next.length){
+      try{ localStorage.removeItem('mis.spAppsScriptUrls'); }catch(e){}
+      toast('SharePoint Apps Script URLs cleared.', 'info');
+      return;
+    }
+    setSharePointAppsScriptUrls(next);
+    fetchFromSharePointAppsScript({ urls: next });
+  } else {
+    fetchFromSharePointAppsScript();
+  }
+});
+{ const b = document.getElementById('emptySharePointLiveBtn'); if(b) b.addEventListener('click', () => fetchFromSharePointAppsScript()); }
+
+// On page load, if SharePoint Apps Script URLs are configured, prepare refresh button
+(function(){
+  if(getSharePointAppsScriptUrls().length){
+    const btn = document.getElementById('refreshBtn');
+    if(btn && btn.style.display === 'none'){
+      btn.style.display = '';
+      btn.dataset.source = 'spAppsScript';
+    }
   }
 })();
 
@@ -6111,6 +6372,7 @@ document.getElementById('menuDisconnect').addEventListener('click', ()=>{
   try{ localStorage.removeItem('mis_sp_config'); }catch(e){}
   try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){}
   try{ localStorage.removeItem('mis.appsScriptUrls'); }catch(e){}
+  try{ localStorage.removeItem('mis.spAppsScriptUrls'); }catch(e){}
   // Stop auto-refresh timers
   if(gsheetState.timer){ clearInterval(gsheetState.timer); gsheetState.timer = null; }
   if(spState.timer){ clearInterval(spState.timer); spState.timer = null; }
