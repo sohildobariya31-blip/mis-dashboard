@@ -1,65 +1,55 @@
 /**
- * Purchase MIS — Live JSON endpoint
+ * Purchase MIS — Live JSON endpoint (FAST version)
  * ==================================================
- * Exposes the linked Google Sheets as a JSON Web App so the
- * dashboard can read fresh data in seconds (bypassing the
- * 5-15 minute Publish-to-web CSV cache).
+ * Returns sheet data as JSON. Optimized to:
+ *  - skip empty/blank rows (massive speedup on sheets with formula tails)
+ *  - cap fetched range to actual data
+ *  - support gzip-friendly compact arrays
  *
- * SETUP (one-time, takes ~5 minutes)
- * ------------------------------------------------
- * 1. Open EITHER of the two source Google Sheets in your browser.
- * 2. Extensions → Apps Script. Delete any existing code in Code.gs.
- * 3. Paste THIS file in.
- * 4. Save (disk icon).
- * 5. Click "Deploy" (top-right) → "New deployment"
- *      • Type      → "Web app"
- *      • Description → "Purchase MIS Live"
- *      • Execute as → "Me (your@email.com)"
- *      • Who has access → "Anyone"   (read-only, no edits)
- *    Click "Deploy".
- * 6. Authorize (it will pop a Google login → "Advanced" → "Go to ... unsafe").
- *    This is normal for personal Apps Script.
- * 7. Copy the "Web app URL" — looks like:
- *    https://script.google.com/macros/s/AKfycbz.../exec
- * 8. Paste that URL into the dashboard:
- *    Data ▾  →  "🔗 Apps Script live endpoint"  →  paste URL  →  Save
- *    The dashboard will now fetch live data in ~3-8 seconds.
+ * The dashboard expects each sheet's `data` to be a 2D array
+ * of strings/numbers (first row = headers).
  *
- * To redeploy after editing:
- *    Deploy → Manage deployments → ✏️ pencil → New version → Deploy
+ * SETUP — see AppsScript-Live-Setup.md.
  *
- * SECURITY NOTE
- * ------------------------------------------------
- * The Web App URL is read-only (no writes from the dashboard).
- * Anyone with the URL can read your published sheet data, so keep
- * it private — share only with people you trust.
+ * NOTE on multi-spreadsheet:
+ *  You can either run ONE script that opens both spreadsheets
+ *  (fill in both IDs in SOURCES below), OR run TWO scripts
+ *  (one per spreadsheet) and paste both Web App URLs in the
+ *  dashboard. The dashboard handles both.
  */
 
 // ==============================================================
-// CONFIG — fill in the spreadsheet IDs of your two purchase files
+// CONFIG — fill in the spreadsheet IDs
 // ==============================================================
 //
 // Open the spreadsheet, look at the URL:
 //   https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
 // Copy the SPREADSHEET_ID and paste below.
+//
+// If this script lives INSIDE one of the spreadsheets, you can
+// leave that one's `id` empty (or use 'self') and the script
+// will fall back to SpreadsheetApp.getActiveSpreadsheet().
 
 var SOURCES = [
   {
-    id: 'PASTE_26-27_SPREADSHEET_ID_HERE',
+    id: 'self',                       // 'self' or '' = use the spreadsheet this script is bound to
     label: '26-27',
     sheets: [
       { name: 'BOM',            tag: 'BOM 26-27' },
       { name: 'Other material', tag: 'Other material 26-27' },
     ],
   },
-  {
-    id: 'PASTE_25-26_SPREADSHEET_ID_HERE',
-    label: '25-26',
-    sheets: [
-      { name: 'BOM',            tag: 'BOM 25-26' },
-      { name: 'Other material', tag: 'Other material 25-26' },
-    ],
-  },
+  // Uncomment + fill if you want this single script to also serve the other file.
+  // Otherwise leave commented and host a second script in the 25-26 sheet.
+  //
+  // {
+  //   id: 'PASTE_25-26_SPREADSHEET_ID_HERE',
+  //   label: '25-26',
+  //   sheets: [
+  //     { name: 'BOM',            tag: 'BOM 25-26' },
+  //     { name: 'Other material', tag: 'Other material 25-26' },
+  //   ],
+  // },
 ];
 
 // ==============================================================
@@ -72,27 +62,30 @@ function doGet(e) {
   try {
     for (var i = 0; i < SOURCES.length; i++) {
       var src = SOURCES[i];
-      if (!src.id || src.id.indexOf('PASTE_') === 0) continue; // skip placeholders
-
       var ss;
-      try {
-        ss = SpreadsheetApp.openById(src.id);
-      } catch (err) {
-        out.sheets.push({ tag: src.label, error: 'cannot open: ' + err.message });
-        continue;
+
+      if (!src.id || src.id === 'self' || (typeof src.id === 'string' && src.id.indexOf('PASTE_') === 0)) {
+        ss = SpreadsheetApp.getActiveSpreadsheet();
+        if (!ss && src.id !== 'self') {
+          out.sheets.push({ tag: src.label, error: 'no spreadsheet ID configured and no active spreadsheet' });
+          continue;
+        }
+      } else {
+        try { ss = SpreadsheetApp.openById(src.id); }
+        catch (err) { out.sheets.push({ tag: src.label, error: 'cannot open: ' + err.message }); continue; }
       }
+      if (!ss) continue;
 
       for (var j = 0; j < src.sheets.length; j++) {
         var spec = src.sheets[j];
         var sheet = ss.getSheetByName(spec.name);
 
-        // Case-insensitive fallback
+        // Case-insensitive partial match fallback
         if (!sheet) {
           var all = ss.getSheets();
           for (var k = 0; k < all.length; k++) {
             if (all[k].getName().toLowerCase().indexOf(spec.name.toLowerCase()) !== -1) {
-              sheet = all[k];
-              break;
+              sheet = all[k]; break;
             }
           }
         }
@@ -101,20 +94,46 @@ function doGet(e) {
           continue;
         }
 
-        var rows = sheet.getLastRow();
-        var cols = sheet.getLastColumn();
-        if (rows === 0 || cols === 0) {
-          out.sheets.push({ tag: spec.tag, rows: 0, data: [] });
-          continue;
+        // Use getDataRange for tight bounds + getDisplayValues for formatted dates
+        var rng = sheet.getDataRange();
+        if (!rng) { out.sheets.push({ tag: spec.tag, rows: 0, data: [] }); continue; }
+        var values = rng.getDisplayValues();
+
+        // Trim trailing fully-empty rows (formula tails create thousands of zero rows)
+        var lastNonEmpty = values.length - 1;
+        while (lastNonEmpty >= 0) {
+          var row = values[lastNonEmpty];
+          var hasData = false;
+          for (var c = 0; c < row.length; c++) {
+            var v = row[c];
+            if (v !== '' && v !== null && v !== undefined) { hasData = true; break; }
+          }
+          if (hasData) break;
+          lastNonEmpty--;
+        }
+        if (lastNonEmpty < 0) { out.sheets.push({ tag: spec.tag, rows: 0, data: [] }); continue; }
+        var trimmed = values.slice(0, lastNonEmpty + 1);
+
+        // Optionally: drop rows that are zero-only (typical of empty BOM rows in 26-27)
+        // Keep header (row 0) and rows that have at least one non-empty AND non-zero text cell.
+        var compact = [trimmed[0]];
+        for (var r = 1; r < trimmed.length; r++) {
+          var rr = trimmed[r];
+          var keep = false;
+          for (var c2 = 0; c2 < rr.length; c2++) {
+            var s = rr[c2];
+            if (s === '' || s == null) continue;
+            if (s === '0' || s === 0) continue;
+            keep = true; break;
+          }
+          if (keep) compact.push(rr);
         }
 
-        // Use display values so dates appear formatted, not as serials
-        var values = sheet.getRange(1, 1, rows, cols).getDisplayValues();
         out.sheets.push({
           tag: spec.tag,
-          rows: rows,
-          cols: cols,
-          data: values,
+          rows: compact.length,
+          cols: compact[0] ? compact[0].length : 0,
+          data: compact,
         });
       }
     }
@@ -123,7 +142,7 @@ function doGet(e) {
   } catch (e) {
     out.ok = false;
     out.error = e.message;
-    out.stack = e.stack;
+    out.stack = (e.stack || '').split('\n').slice(0, 4).join(' | ');
   }
 
   return ContentService
@@ -133,14 +152,15 @@ function doGet(e) {
 
 // ==============================================================
 // Quick test from the editor — run this to confirm the script
-// can read both sheets before deploying
+// can read the sheets before deploying
 // ==============================================================
 function testFetch() {
   var fake = doGet({});
   var out = JSON.parse(fake.getContent());
   Logger.log('OK: ' + out.ok);
   Logger.log('Elapsed: ' + out.elapsedMs + ' ms');
-  for (var i = 0; i < out.sheets.length; i++) {
+  if (out.error) Logger.log('Error: ' + out.error);
+  for (var i = 0; i < (out.sheets || []).length; i++) {
     var s = out.sheets[i];
     Logger.log('  ' + s.tag + ' → ' + (s.error || (s.rows + ' rows × ' + s.cols + ' cols')));
   }

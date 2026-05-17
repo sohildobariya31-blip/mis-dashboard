@@ -112,7 +112,7 @@ body{
   min-height:100vh;
 }
 header{
-  padding:12px 22px;display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px;display:flex;align-items:center;justify-content:space-between;
   border-bottom:1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
   background:
     linear-gradient(90deg,
@@ -122,7 +122,7 @@ header{
   position:sticky;top:0;z-index:60;
   -webkit-backdrop-filter:blur(12px) saturate(140%);
   backdrop-filter:blur(12px) saturate(140%);
-  gap:10px;min-height:58px;overflow:visible;
+  gap:14px;min-height:60px;overflow:visible;
   box-shadow:0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent), 0 12px 30px rgba(0,0,0,.18);
 }
 header::after{
@@ -133,9 +133,15 @@ header::after{
   pointer-events:none;
 }
 @keyframes headerLine{0%{background-position:0 0}100%{background-position:-200% 0}}
-header h1{
-  margin:0;font-size:19px;letter-spacing:.4px;display:flex;align-items:center;gap:12px;color:var(--text);font-weight:700;
+
+.brand-block{
+  display:flex;align-items:center;gap:14px;flex:1;min-width:0;flex-wrap:wrap;
 }
+header h1{
+  margin:0;font-size:18px;letter-spacing:.4px;display:flex;align-items:center;gap:11px;color:var(--text);font-weight:700;
+  flex-shrink:0;
+}
+header h1 .brand-sub{color:var(--muted);font-weight:500;font-size:13px;letter-spacing:.3px}
 header h1 .logo{
   position:relative;
   width:34px;height:34px;border-radius:10px;
@@ -156,10 +162,46 @@ header h1 .logo::before{
 @keyframes logoSpin{to{--logo-angle:360deg}}
 header h1:hover .logo{transform:rotate(-6deg) scale(1.06)}
 header h1:hover .logo::before{opacity:1}
+
+/* Info chip strip — replaces the old wall-of-text meta line */
+.meta-strip{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0;
+}
+.meta-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 10px;border-radius:8px;font-size:11px;
+  background:color-mix(in srgb, var(--bg2) 80%, transparent);
+  border:1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  color:var(--text);font-weight:500;
+  transition:border-color .2s ease, box-shadow .2s ease, transform .15s ease;
+  white-space:nowrap;max-width:100%;overflow:hidden;
+}
+.meta-chip:hover{
+  border-color:color-mix(in srgb, var(--accent) 50%, var(--border));
+  box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 15%, transparent);
+  transform:translateY(-1px);
+}
+.meta-chip .ico{font-size:13px;line-height:1;flex:none}
+.meta-chip .lbl{
+  font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;
+}
+.meta-chip .val{
+  color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;
+  overflow:hidden;text-overflow:ellipsis;max-width:240px;
+}
+.meta-chip.live::before{
+  content:"";width:7px;height:7px;border-radius:50%;background:var(--good);flex:none;
+  box-shadow:0 0 8px var(--good);
+  animation:livePulse 1.6s ease-in-out infinite;
+}
+@keyframes livePulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
+.meta-chip.compact{padding:5px 8px}
+.legacy-meta{display:none}
 header .meta{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+
 .container{padding:16px 22px 60px}
 
-/* Header refresh button — polished spinning state */
+/* Header refresh button */
 #refreshBtn{
   position:relative;
   border:1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
@@ -178,6 +220,32 @@ header .meta{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums
   border-top-color:var(--accent);border-right-color:var(--accent2);
   animation:spin .9s linear infinite;
   pointer-events:none;
+}
+
+/* Compact button row on small screens */
+header .btn-row{flex-wrap:wrap;justify-content:flex-end;gap:6px;flex-shrink:0}
+header .btn-row .btn{padding:7px 11px;font-size:12.5px}
+header .btn-row .btn.ghost{padding:7px 10px}
+
+/* Responsive — chip strip wraps below brand on narrow screens */
+@media (max-width:1280px){
+  header h1{font-size:17px}
+  header h1 .logo{width:30px;height:30px;font-size:15px}
+  .meta-chip .val{max-width:160px}
+}
+@media (max-width:1080px){
+  header{padding:10px 14px}
+  .brand-block{flex-direction:column;align-items:flex-start;gap:6px}
+  .meta-strip{width:100%}
+  .meta-chip{font-size:10.5px;padding:4px 8px}
+  .meta-chip .val{max-width:140px}
+}
+@media (max-width:720px){
+  header{flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px}
+  header .btn-row{justify-content:flex-start}
+  header h1{font-size:16px}
+  .meta-chip .val{max-width:120px}
+  .meta-chip .lbl{display:none}
 }
 
 /* Buttons */
@@ -489,6 +557,15 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 .modal h3{margin:0 0 12px;color:var(--text)}
 .modal p{color:var(--muted);font-size:13px;margin:0 0 12px}
 .modal .sheet-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;max-height:50vh;overflow:auto}
+.gs-picker-search{
+  width:100%;background:var(--bg2);color:var(--text);
+  border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:13px;
+  margin-bottom:10px;transition:border-color .15s ease, box-shadow .15s ease;
+}
+.gs-picker-search:focus{
+  outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .modal .sheet-item{
   display:flex;justify-content:space-between;align-items:center;
   padding:10px 12px;background:var(--bg2);border:1px solid var(--border);
@@ -723,10 +800,17 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 </div>
 
 <header>
-  <div>
-    <h1><span class="logo">M</span> Purchase MIS <span style="color:var(--muted);font-weight:400;font-size:14px">/ BOM</span></h1>
-    <div class="meta" id="meta">Upload an Excel file to begin</div>
-    <div class="meta" id="dataSourceTag" style="display:none;margin-top:2px;padding:2px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:11px;display:inline-block">📁 Source: <span id="dataSourceName">-</span></div>
+  <div class="brand-block">
+    <h1><span class="logo">M</span> Purchase MIS <span class="brand-sub">/ BOM</span></h1>
+    <div class="meta-strip" id="metaStrip">
+      <span class="meta-chip" id="metaSource" style="display:none"><span class="ico">📡</span><span class="lbl">Source</span><span class="val" id="metaSourceVal">-</span></span>
+      <span class="meta-chip" id="metaSheet" style="display:none"><span class="ico">📋</span><span class="lbl">Sheet</span><span class="val" id="metaSheetVal">-</span></span>
+      <span class="meta-chip" id="metaRows" style="display:none"><span class="ico">📊</span><span class="lbl">Rows</span><span class="val" id="metaRowsVal">-</span></span>
+      <span class="meta-chip" id="metaView" style="display:none"><span class="ico">🔍</span><span class="lbl">View</span><span class="val" id="metaViewVal">-</span></span>
+      <span class="meta-chip" id="metaTime" style="display:none"><span class="ico">⏱</span><span class="lbl">Updated</span><span class="val" id="metaTimeVal">-</span></span>
+    </div>
+    <div class="meta legacy-meta" id="meta">Upload an Excel file to begin</div>
+    <div class="meta" id="dataSourceTag" style="display:none"></div>
   </div>
   <div class="btn-row">
     <button class="btn ghost" id="refreshBtn" title="Refresh from current data source" style="display:none">🔄 Refresh</button>
@@ -786,7 +870,8 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:16px 0">
         <button class="btn" id="emptyUploadBtn2" style="font-size:15px;padding:12px 20px">📂 Upload Excel file(s)</button>
-        <button class="btn" id="emptyLiveBtn" style="font-size:15px;padding:12px 20px;background:linear-gradient(135deg,#22c55e,#14b8a6)">🔄 Load from Google Sheets (live)</button>
+        <button class="btn" id="emptyAppsScriptBtn" style="font-size:15px;padding:12px 20px;background:linear-gradient(135deg,#a855f7,#22d3ee)">⚡ Apps Script (live, instant)</button>
+        <button class="btn" id="emptyLiveBtn" style="font-size:15px;padding:12px 20px;background:linear-gradient(135deg,#22c55e,#14b8a6)">🔄 Load from Google Sheets (CSV)</button>
         <button class="btn secondary" id="emptyGSheetBtn" style="font-size:15px;padding:12px 20px">🔗 Custom Google Sheets URL</button>
         <button class="btn secondary" id="emptySharePointBtn" style="font-size:15px;padding:12px 20px">☁️ SharePoint / OneDrive</button>
       </div>
@@ -1496,13 +1581,14 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<!-- Google Sheets picker modal -->
+<!-- Google Sheets / Apps Script picker modal -->
 <div class="modal-bg" id="gsPickerModal">
   <div class="modal">
-    <h3>📡 Load from Google Sheets</h3>
-    <p>Pick which sheets to fetch live. Selecting fewer sheets makes loading faster.</p>
+    <h3 id="gsPickerTitle">📡 Load from Google Sheets</h3>
+    <p id="gsPickerSubtitle">Pick which sheets to fetch live. Selecting fewer sheets makes loading faster.</p>
+    <input type="text" id="gsPickerSearch" placeholder="🔍 Search sheets..." class="gs-picker-search"/>
     <div class="sheet-list" id="gsPickerList"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;font-size:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;font-size:12px" id="gsPickerQuick">
       <button class="btn ghost" id="gsPickAll" style="padding:5px 10px;font-size:11px">Select all</button>
       <button class="btn ghost" id="gsPickNone" style="padding:5px 10px;font-size:11px">Select none</button>
       <button class="btn ghost" id="gsPickBom" style="padding:5px 10px;font-size:11px">Only BOM</button>
@@ -1546,7 +1632,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.9</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.13</span></footer>
 
 
 <script>
@@ -1730,16 +1816,57 @@ RAW.forEach(function(r){
 function setMetaText(){
   const meta = document.getElementById('meta');
   if(!meta) return;
+  // Keep the legacy plain text up-to-date (fallback for narrow screens / accessibility)
   let txt = `Source: ${META.sourceFile || '-'} | Sheet: ${META.sheet || '-'} | Rows: ${META.rowCount || 0} | Generated: ${META.generatedAt || '-'}`;
-  // If sheet filter active, show what's filtered (wrapped — `state` is declared later, accessing in TDZ throws)
+  let viewLabel = null, filteredCount = null;
   try{
     if(state && state.sheetFilter && state.sheetFilter !== 'all' && Array.isArray(RAW) && RAW.length){
       const labels = {bom:'BOM only',other:'Other material only',bom2627:'BOM 26-27',bom2526:'BOM 25-26',other2627:'Other 26-27',other2526:'Other 25-26'};
       const filtered = applyFiltersExceptDate(RAW);
-      txt += ` | View: ${labels[state.sheetFilter] || state.sheetFilter} (${filtered.length} rows)`;
+      viewLabel = labels[state.sheetFilter] || state.sheetFilter;
+      filteredCount = filtered.length;
+      txt += ` | View: ${viewLabel} (${filteredCount} rows)`;
     }
-  }catch(e){ /* state not yet initialized — first call before declaration */ }
+  }catch(e){ /* state not yet initialized */ }
   meta.textContent = txt;
+
+  // Populate the new info chips
+  const isLoaded = RAW && RAW.length > 0;
+  const isLive = String(META.sourceFile || '').toLowerCase().indexOf('live') !== -1
+              || String(META.sourceFile || '').toLowerCase().indexOf('apps script') !== -1;
+  const setChip = (id, valId, val, opts) => {
+    const chip = document.getElementById(id);
+    const valEl = document.getElementById(valId);
+    if(!chip || !valEl) return;
+    if(val == null || val === '' || val === '-'){
+      chip.style.display = 'none';
+      return;
+    }
+    chip.style.display = '';
+    valEl.textContent = val;
+    chip.classList.toggle('live', !!(opts && opts.live));
+    if(opts && opts.title) chip.title = opts.title;
+  };
+  setChip('metaSource', 'metaSourceVal',
+    isLoaded ? (META.sourceFile || 'Cached').replace(/\s*\(live\)$/i, '') : null,
+    { live: isLive, title: META.sourceFile });
+  // Sheet chip — short summary of what's loaded (e.g. "BOM 26-27 + 3 more")
+  let sheetSummary = null;
+  if(META.sheet){
+    const parts = String(META.sheet).split(/,\s*/).map(s => s.replace(/\s*\(\d+[^)]*\)/g,'').trim()).filter(Boolean);
+    if(parts.length === 1) sheetSummary = parts[0];
+    else if(parts.length > 1) sheetSummary = parts[0] + ' +' + (parts.length - 1) + ' more';
+  }
+  setChip('metaSheet', 'metaSheetVal', sheetSummary, { title: META.sheet });
+  setChip('metaRows', 'metaRowsVal', isLoaded ? (META.rowCount || 0).toLocaleString('en-IN') : null);
+  setChip('metaView', 'metaViewVal', viewLabel ? `${viewLabel} (${filteredCount.toLocaleString('en-IN')})` : null);
+  // Time chip — show only the time portion if generatedAt has a clean format
+  let timeStr = null;
+  if(META.generatedAt){
+    const match = String(META.generatedAt).match(/(\d{1,2}:\d{2}(?::\d{2})?\s*(AM|PM)?)/i);
+    if(match) timeStr = match[1];
+  }
+  setChip('metaTime', 'metaTimeVal', timeStr, { title: META.generatedAt });
 }
 setMetaText();
 
@@ -1824,13 +1951,31 @@ const ALL_COLUMNS = [
   {key:'remarks',label:'Remarks',type:'text',default:false},
   {key:'_inrAmount',label:'Total INR (converted)',type:'num',default:false},
   {key:'_inrRate',label:'Rate/unit in INR',type:'num',default:false},
-  {key:'_inrPerWp',label:'Solar Cell: ₹/Wp',type:'num',default:false},
+  // --- Solar Cell ---
+  {key:'_wp',label:'Solar Cell: Wp/cell',type:'num',default:false},
   {key:'_wpTotal',label:'Solar Cell: Total Wp',type:'num',default:false},
+  {key:'_ratePerWp',label:'Solar Cell: Rate/Wp (native)',type:'num',default:false},
+  {key:'_inrPerWp',label:'Solar Cell: ₹/Wp',type:'num',default:false},
+  {key:'_inrPerCell',label:'Solar Cell: ₹/cell',type:'num',default:false},
+  {key:'_invoiceTotalINR',label:'Solar Cell: Invoice Total ₹',type:'num',default:false},
+  // --- Al Frame ---
+  {key:'_frameType',label:'Al Frame: Long/Short',type:'text',default:false},
   {key:'_frameInfo',label:'Al Frame: Set info',type:'text',default:false},
+  {key:'_sets',label:'Al Frame: Sets',type:'num',default:false},
+  {key:'_costPerSet',label:'Al Frame: Set rate (native)',type:'num',default:false},
   {key:'_costPerSetINR',label:'Al Frame: ₹/Set',type:'num',default:false},
+  {key:'_inrPerFramePc',label:'Al Frame: ₹/piece',type:'num',default:false},
+  {key:'_totalSetCost',label:'Al Frame: Set total (native)',type:'num',default:false},
+  {key:'_totalSetCostINR',label:'Al Frame: Set total ₹',type:'num',default:false},
+  // --- Glass ---
   {key:'_glassAreaPerPc',label:'Glass: sqm per piece',type:'num',default:false},
   {key:'_glassQtyPcs',label:'Glass: Qty in pieces',type:'num',default:false},
+  {key:'_glassQtySqm',label:'Glass: Qty in sqm',type:'num',default:false},
+  {key:'_glassRatePerSqm',label:'Glass: Rate/sqm (native)',type:'num',default:false},
+  {key:'_glassRatePerSqmINR',label:'Glass: ₹/sqm',type:'num',default:false},
   {key:'_glassRatePerPc',label:'Glass: ₹/piece',type:'num',default:false},
+  {key:'_glassRatePerPcNat',label:'Glass: Rate/piece (native)',type:'num',default:false},
+  {key:'_glassTotalINR',label:'Glass: Invoice Total ₹',type:'num',default:false},
   {key:'_unitLabel',label:'Unit basis',type:'text',default:false},
 ];
 const COL_BY_KEY = Object.fromEntries(ALL_COLUMNS.map(c=>[c.key,c]));
@@ -2897,7 +3042,17 @@ function payBadge(s){
   return `<span class="badge b-na">${s}</span>`;
 }
 // Monetary fields that should show currency symbol (all _ prefixed = INR converted)
-const MONETARY_KEYS = new Set(['basicRate','amount','freight','totalAmount','payable','debit','paid','outstanding','_inrAmount','_inrRate','_inrPerWp','_costPerSetINR','_glassRatePerPc']);
+const MONETARY_KEYS = new Set([
+  'basicRate','amount','freight','totalAmount','payable','debit','paid','outstanding',
+  '_inrAmount','_inrRate','_inrPerWp','_inrPerCell','_invoiceTotalINR',
+  '_costPerSet','_costPerSetINR','_inrPerFramePc','_totalSetCost','_totalSetCostINR',
+  '_ratePerWp',
+  '_glassRatePerPc','_glassRatePerPcNat','_glassRatePerSqm','_glassRatePerSqmINR','_glassTotalINR',
+]);
+// Native-currency monetary keys (show row's currency symbol — not converted to INR)
+const MONETARY_NATIVE_KEYS = new Set(['basicRate','amount','freight','totalAmount','payable','debit','paid','outstanding','_costPerSet','_totalSetCost','_ratePerWp','_glassRatePerSqm','_glassRatePerPcNat']);
+// Always-INR monetary keys
+const MONETARY_INR_KEYS = new Set(['_inrAmount','_inrRate','_inrPerWp','_inrPerCell','_invoiceTotalINR','_costPerSetINR','_inrPerFramePc','_totalSetCostINR','_glassRatePerPc','_glassRatePerSqmINR','_glassTotalINR']);
 
 function cellValue(r, key){
   const c = COL_BY_KEY[key]; const v = r[key];
@@ -2905,12 +3060,11 @@ function cellValue(r, key){
   if(c.type === 'num'){
     // Show currency symbol for monetary fields
     if(MONETARY_KEYS.has(key)){
-      // These computed fields are ALWAYS in INR (already converted)
-      if(key === '_inrAmount' || key === '_inrRate' || key === '_inrPerWp' || 
-         key === '_costPerSetINR' || key === '_glassRatePerPc'){
+      // Always-INR computed fields
+      if(MONETARY_INR_KEYS.has(key)){
         return '₹' + fmtNum(v);
       }
-      // Regular fields: show in row's native currency
+      // Native-currency fields: show in row's currency
       const cur = normalizeCurrency(r.currency, r);
       return getCurrencySymbol(cur) + fmtNum(v);
     }
@@ -3033,71 +3187,8 @@ function getActiveFilterSummary(){
 function render(){
   readTopFilters();
   if(typeof refreshFxBanner === 'function') refreshFxBanner();
-  // Recalculate _inrAmount, _inrRate, _inrPerWp, _costPerSetINR for all rows
-  for(var i=0; i<RAW.length; i++){
-    var r = RAW[i];
-    var cur = normalizeCurrency(r.currency, r);
-    var payable = r.payable || r.amount || 0;
-    var fxRate = 1;
-    if(cur !== 'INR'){
-      fxRate = lookupRate(cur, r.poDate || r.invoiceDate) || 1;
-    }
-    r._inrAmount = Math.round(payable * fxRate * 100) / 100;
-    r._inrRate = Math.round((r.basicRate || 0) * fxRate * 100) / 100;
-    
-    // Solar Cell: per Wp price in INR
-    if(r._wp > 0){
-      r._inrPerWp = Math.round(((r.basicRate || 0) * fxRate / r._wp) * 10000) / 10000;
-      r._wpTotal = Math.round((r.qty || 0) * r._wp);
-    } else {
-      r._inrPerWp = null;
-      r._wpTotal = null;
-    }
-    
-    // Al Frame: per set info in INR
-    if(r._frameType){
-      var setRate = (r.basicRate || 0) * fxRate;
-      if(r._costPerSet > 0){
-        // This row has paired set data
-        r._costPerSetINR = Math.round(r._costPerSet * fxRate * 100) / 100;
-        r._frameInfo = r._frameType + ' | ' + Math.round((r.qty||0)/2) + ' sets | ₹' + r._costPerSetINR + '/set';
-      } else {
-        // Unpaired (only long or only short available)
-        var halfSets = Math.round((r.qty||0)/2);
-        r._costPerSetINR = Math.round(setRate * 2 * 100) / 100; // cost of 2 pieces (half set contribution)
-        r._frameInfo = r._frameType + ' (½ set) | ' + halfSets + ' half-sets | ₹' + r._costPerSetINR + '/pair';
-      }
-    } else {
-      r._costPerSetINR = null;
-      r._frameInfo = null;
-    }
-    
-    // Glass: compute sqm-to-pieces conversion
-    var desc = String(r.description || '');
-    var itemLow = String(r.itemCode || '').toLowerCase();
-    if((itemLow.indexOf('glass') !== -1 || desc.toLowerCase().indexOf('glass') !== -1) && 
-       desc.match(/(\d{3,4})\s*[xX×]\s*(\d{3,4})/)){
-      var gDim = desc.match(/(\d{3,4})\s*[xX×]\s*(\d{3,4})/);
-      if(gDim){
-        var gL = parseInt(gDim[1]), gW = parseInt(gDim[2]);
-        var areaPerPc = (gL / 1000) * (gW / 1000);
-        r._glassAreaPerPc = Math.round(areaPerPc * 10000) / 10000;
-        // If UOM is Nos, qty is already in pieces
-        var uomLow = String(r.uom || '').toLowerCase();
-        if(uomLow === 'nos' || uomLow === 'pcs' || uomLow === 'nos'){
-          r._glassQtyPcs = r.qty || 0;
-          r._glassRatePerPc = Math.round((r.basicRate || 0) * fxRate * 100) / 100;
-        } else {
-          // UOM is sqm — convert
-          var qtySqm = r.qty || 0;
-          if(qtySqm > 0 && areaPerPc > 0){
-            r._glassQtyPcs = Math.round(qtySqm / areaPerPc);
-            r._glassRatePerPc = Math.round((r.basicRate || 0) * areaPerPc * fxRate * 100) / 100;
-          }
-        }
-      }
-    }
-  }
+  // Recompute all derived fields (Solar Cell, Al Frame, Glass + INR conversions)
+  if(typeof computeDerivedFields === 'function') computeDerivedFields(RAW);
   const filtered = applyChartFilters(RAW);
 
   // KPIs — use selected amount type
@@ -3980,143 +4071,208 @@ function refreshFxTab(){
    Derived field computation for Solar Cell (per Wp) and Al Frame (per set)
    ========================================================================= */
 function computeDerivedFields(rows){
-  // --- SOLAR CELL: extract Watt peak from description, compute per-Wp metrics ---
-  for(var i = 0; i < rows.length; i++){
-    var r = rows[i];
-    if(!r.itemCode) continue;
-    var item = String(r.itemCode).toLowerCase();
-    
-    // Solar Cell: extract Wp from description like "W9.74" or "W7.72"
-    if(item.indexOf('solar') !== -1 && item.indexOf('cell') !== -1 || 
-       (r.description && r.description.toLowerCase().indexOf('solar cell') !== -1)){
-      var desc = String(r.description || '');
-      var wpMatch = desc.match(/W(\d+\.?\d*)\s*A/i);
-      if(wpMatch){
-        var wp = parseFloat(wpMatch[1]);
-        if(wp > 0){
-          r._wp = wp;                                    // watt peak per cell
-          r._qtyWp = (r.qty || 0) * wp;                 // total Wp
-          r._ratePerWp = (r.basicRate || 0) / wp;       // rate per Wp
-          r._amountWp = (r.amount || 0);                 // same amount, just context
-          // Override display fields for Wp-based analysis
-          r._unitLabel = 'Wp';
-          r._derivedQty = r._qtyWp;
-          r._derivedRate = r._ratePerWp;
-        }
-      }
-    }
-    
-    // Al Frame: mark long vs short based on description dimensions
-    if(item.indexOf('frame') !== -1 || item.indexOf('al.') !== -1 || item.indexOf('alu') !== -1 ||
-       (r.description && (r.description.toLowerCase().indexOf('frame') !== -1 || r.description.toLowerCase().indexOf('alu') !== -1))){
-      var descF = String(r.description || '');
-      // Extract first dimension (length in mm)
-      var dimMatch = descF.match(/(\d{3,4})\s*[xX×]/);
-      if(dimMatch){
-        var length = parseInt(dimMatch[1]);
-        r._frameType = length > 1500 ? 'Long' : 'Short';
-        r._frameLength = length;
-      }
+  // Cleanup: clear all derived fields first to avoid stale values
+  const derivedKeys = ['_wp','_wpTotal','_qtyWp','_ratePerWp','_inrPerWp','_inrPerCell','_invoiceTotalINR',
+    '_frameType','_frameInfo','_frameLength','_sets','_costPerSet','_costPerSetINR','_inrPerFramePc','_totalSetCost','_totalSetCostINR',
+    '_glassAreaPerPc','_glassQtyPcs','_glassQtySqm','_glassRatePerSqm','_glassRatePerSqmINR','_glassRatePerPc','_glassRatePerPcNat','_glassTotalINR',
+    '_unitLabel','_derivedQty','_derivedRate','_amountWp','_isSolarCell','_isAlFrame','_isGlass'];
+  for(let i=0; i<rows.length; i++){
+    const r = rows[i];
+    derivedKeys.forEach(k => { if(k in r) r[k] = null; });
+  }
+
+  // Helper: detect category by item code or description
+  function classify(r){
+    const item = String(r.itemCode || '').toLowerCase();
+    const desc = String(r.description || '').toLowerCase();
+    const all = item + ' ' + desc;
+    if(all.indexOf('solar cell') !== -1 || (item.indexOf('solar') !== -1 && item.indexOf('cell') !== -1)) return 'solar';
+    if(item.indexOf('frame') !== -1 || all.indexOf('al. frame') !== -1 || all.indexOf('aluminium frame') !== -1 || all.indexOf('alu frame') !== -1) return 'frame';
+    if(item.indexOf('glass') !== -1 || (all.indexOf('solar glass') !== -1)) return 'glass';
+    return null;
+  }
+
+  // ===== SOLAR CELL: extract Wp from description (e.g. "W9.74A", "W 9.8 A", "9.74W") =====
+  for(let i=0; i<rows.length; i++){
+    const r = rows[i];
+    const kind = classify(r);
+    if(kind !== 'solar') continue;
+    r._isSolarCell = true;
+    const desc = String(r.description || '');
+    // Patterns: "W9.74A", "W9.74 A", "9.74Wp", "W 9.74"
+    let wp = null;
+    let m = desc.match(/W\s*(\d+(?:\.\d+)?)\s*A?/i) || desc.match(/(\d+(?:\.\d+)?)\s*Wp/i);
+    if(m){ wp = parseFloat(m[1]); }
+    if(!(wp > 0)) continue;
+    r._wp = wp;                                       // watt peak per cell
+    r._wpTotal = Math.round((r.qty || 0) * wp);       // total Wp
+    r._qtyWp = r._wpTotal;
+    if(r.basicRate > 0) r._ratePerWp = r.basicRate / wp;  // rate per Wp (native currency)
+    r._unitLabel = 'Wp';
+    r._derivedQty = r._wpTotal;
+    r._derivedRate = r._ratePerWp;
+  }
+
+  // ===== AL FRAME: tag long/short, then group by invoice for set math =====
+  for(let i=0; i<rows.length; i++){
+    const r = rows[i];
+    const kind = classify(r);
+    if(kind !== 'frame') continue;
+    r._isAlFrame = true;
+    const descF = String(r.description || '');
+    // Look for first dimension (length in mm). Long > 1500mm typically.
+    const dimMatch = descF.match(/(\d{3,4})\s*[xX×]/);
+    if(dimMatch){
+      const length = parseInt(dimMatch[1]);
+      r._frameType = length > 1500 ? 'Long' : 'Short';
+      r._frameLength = length;
+    } else {
+      // Fallback: variant name
+      const v = String(r.variant || '').toLowerCase();
+      if(v.indexOf('long') !== -1) r._frameType = 'Long';
+      else if(v.indexOf('short') !== -1) r._frameType = 'Short';
     }
   }
-  
-  // --- AL FRAME: compute per-set metrics by grouping long+short per invoice ---
-  // Group Al Frame rows by invoice (or PO if no invoice)
-  var frameGroups = {};
-  for(var i = 0; i < rows.length; i++){
-    var r = rows[i];
+
+  // Group Al Frame rows by invoice + supplier
+  const frameGroups = {};
+  for(let i=0; i<rows.length; i++){
+    const r = rows[i];
     if(!r._frameType) continue;
-    var key = String(r.invoiceNo || r.poNo || 'unknown') + '|' + String(r.supplier || '');
+    const key = String(r.invoiceNo || r.poNo || 'unknown') + '|' + String(r.supplier || '');
     if(!frameGroups[key]) frameGroups[key] = { long:[], short:[] };
     if(r._frameType === 'Long') frameGroups[key].long.push(r);
     else frameGroups[key].short.push(r);
   }
-  
-  // For each group, compute per-set values
-  for(var key in frameGroups){
-    var g = frameGroups[key];
+  // Compute per-set values for each group
+  for(const key in frameGroups){
+    const g = frameGroups[key];
     if(g.long.length === 0 || g.short.length === 0) continue;
-    
-    // Take first long and first short (usually one of each per invoice)
-    var longR = g.long[0];
-    var shortR = g.short[0];
-    var longQty = longR.qty || 0;
-    var shortQty = shortR.qty || 0;
-    var longRate = longR.basicRate || 0;
-    var shortRate = shortR.basicRate || 0;
-    
-    // Per set: sets = qty/2, cost per set = (longRate*2) + (shortRate*2)
-    var sets = Math.min(longQty, shortQty) / 2;
-    var costPerSet = (longRate * 2) + (shortRate * 2);
-    var totalSetCost = sets * costPerSet;
-    
-    // Tag both rows with per-set info
-    for(var li = 0; li < g.long.length; li++){
-      g.long[li]._sets = sets;
-      g.long[li]._costPerSet = costPerSet;
-      g.long[li]._totalSetCost = totalSetCost;
-      g.long[li]._unitLabel = 'set';
-      g.long[li]._derivedQty = sets;
-      g.long[li]._derivedRate = costPerSet;
-    }
-    for(var si = 0; si < g.short.length; si++){
-      g.short[si]._sets = sets;
-      g.short[si]._costPerSet = costPerSet;
-      g.short[si]._totalSetCost = totalSetCost;
-      g.short[si]._unitLabel = 'set';
-      g.short[si]._derivedQty = sets;
-      g.short[si]._derivedRate = costPerSet;
-    }
+    const longR = g.long[0];
+    const shortR = g.short[0];
+    const longQty = longR.qty || 0;
+    const shortQty = shortR.qty || 0;
+    const longRate = longR.basicRate || 0;
+    const shortRate = shortR.basicRate || 0;
+    // Sets = min(long qty, short qty) / 2 (each set has 2 long + 2 short pieces)
+    const sets = Math.floor(Math.min(longQty, shortQty) / 2);
+    const costPerSet = (longRate * 2) + (shortRate * 2); // native currency
+    const totalSetCost = sets * costPerSet;
+    [...g.long, ...g.short].forEach(r => {
+      r._sets = sets;
+      r._costPerSet = costPerSet;       // native currency
+      r._totalSetCost = totalSetCost;   // native currency
+      r._unitLabel = 'set';
+      r._derivedQty = sets;
+      r._derivedRate = costPerSet;
+      const halfLabel = r._frameType === 'Long' ? 'Long' : 'Short';
+      r._frameInfo = halfLabel + ' | ' + sets + ' sets · ' + (g.long.length + g.short.length) + ' rows';
+    });
   }
-  
-  // --- Compute INR Amount for every row (for table display) ---
-  // This uses the default exchange rates from state
-  var defaultRates = {
+
+  // ===== GLASS: extract dimensions from description, compute sqm/piece, INR rates =====
+  for(let i=0; i<rows.length; i++){
+    const r = rows[i];
+    const kind = classify(r);
+    if(kind !== 'glass') continue;
+    r._isGlass = true;
+    const desc = String(r.description || '');
+    // Look for "L x W" patterns in mm. e.g. "1722x1134mm" or "1700 x 1130 mm" or "1.722*1.134"
+    let L = null, W = null;
+    let m = desc.match(/(\d{3,4})\s*[xX×*]\s*(\d{3,4})/);
+    if(m){ L = parseInt(m[1]); W = parseInt(m[2]); }
+    else {
+      // Try meters: "1.722*1.134"
+      m = desc.match(/(\d+\.\d+)\s*[xX×*]\s*(\d+\.\d+)/);
+      if(m){ L = parseFloat(m[1]) * 1000; W = parseFloat(m[2]) * 1000; }
+    }
+    if(L > 0 && W > 0){
+      r._glassAreaPerPc = (L * W) / 1000000; // sqm per piece
+    }
+    const uomLow = String(r.uom || '').toLowerCase().trim();
+    const isPieceUom = uomLow === 'nos' || uomLow === 'pcs' || uomLow === 'pc' || uomLow === 'piece' || uomLow === 'pieces';
+    const qty = r.qty || 0;
+    const rate = r.basicRate || 0;
+    if(isPieceUom){
+      // Qty already in pieces; rate per piece = native rate
+      r._glassQtyPcs = qty;
+      r._glassRatePerPcNat = rate;
+      if(r._glassAreaPerPc > 0){
+        r._glassQtySqm = qty * r._glassAreaPerPc;
+        r._glassRatePerSqm = rate / r._glassAreaPerPc;
+      }
+    } else if(uomLow === 'sqm' || uomLow === 'm2' || uomLow === 'm²'){
+      // Qty in sqm; convert to pieces if we know area
+      r._glassQtySqm = qty;
+      r._glassRatePerSqm = rate;
+      if(r._glassAreaPerPc > 0){
+        r._glassQtyPcs = Math.round(qty / r._glassAreaPerPc);
+        r._glassRatePerPcNat = rate * r._glassAreaPerPc;
+      }
+    } else {
+      // Unknown UOM: treat qty as is
+      r._glassQtyPcs = qty;
+      r._glassRatePerPcNat = rate;
+      if(r._glassAreaPerPc > 0){
+        r._glassQtySqm = qty * r._glassAreaPerPc;
+        r._glassRatePerSqm = rate / r._glassAreaPerPc;
+      }
+    }
+    r._unitLabel = 'piece';
+    r._derivedQty = r._glassQtyPcs;
+    r._derivedRate = r._glassRatePerPcNat;
+  }
+
+  // ===== Compute INR Amount + INR rate for every row using monthly FX =====
+  const defaultRates = {
     'USD':{'2025-04':85.10,'2025-05':85.45,'2025-06':85.80,'2025-07':86.20,'2025-08':86.55,'2025-09':86.90,'2025-10':87.30,'2025-11':87.70,'2025-12':88.10,'2026-01':88.60,'2026-02':89.20,'2026-03':90.50,'2026-04':92.80,'2026-05':94.40},
     'RMB':{'2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.85,'2026-02':13.10,'2026-03':13.45,'2026-04':13.70,'2026-05':13.90},
     'CNY':{'2025-04':11.70,'2025-05':11.80,'2025-06':11.90,'2025-07':12.00,'2025-08':12.10,'2025-09':12.20,'2025-10':12.30,'2025-11':12.45,'2025-12':12.60,'2026-01':12.85,'2026-02':13.10,'2026-03':13.45,'2026-04':13.70,'2026-05':13.90},
+    'EUR':{'2025-04':92.50,'2025-05':93.00,'2025-06':93.50,'2025-07':94.00,'2025-08':94.50,'2025-09':95.00,'2025-10':95.50,'2025-11':96.00,'2025-12':96.50,'2026-01':97.00,'2026-02':97.80,'2026-03':99.00,'2026-04':100.50,'2026-05':102.20},
+    'GBP':{'2025-04':108.00,'2025-05':108.50,'2025-06':109.00,'2025-07':109.50,'2025-08':110.00,'2025-09':110.50,'2025-10':111.00,'2025-11':111.50,'2025-12':112.00,'2026-01':112.50,'2026-02':113.00,'2026-03':114.00,'2026-04':115.50,'2026-05':117.00},
   };
-  
-  for(var i = 0; i < rows.length; i++){
-    var r = rows[i];
-    var cur = normalizeCurrency(r.currency, r);
-    var payable = r.payable || r.amount || 0;
-    var basicAmt = r.amount || 0;
-    
-    if(cur === 'INR'){
-      r._inrAmount = payable;
-      r._inrRate = r.basicRate || 0;
-    } else {
-      // Find exchange rate for this row's month
-      var dateStr = r.poDate || r.invoiceDate || '';
-      var month = dateStr ? dateStr.slice(0,7) : '';
-      var rates = defaultRates[cur];
-      var fxRate = 1;
-      if(rates){
-        if(rates[month]) fxRate = rates[month];
-        else {
-          // Fallback: find nearest month
-          var months = Object.keys(rates).sort();
-          var pick = months[months.length-1]; // default to latest
-          for(var m = 0; m < months.length; m++){
-            if(months[m] <= month) pick = months[m];
-          }
-          fxRate = rates[pick];
-        }
-      }
-      r._inrAmount = payable * fxRate;
-      r._inrRate = (r.basicRate || 0) * fxRate;
-      r._fxRate = fxRate;
+  function lookupFx(cur, dateStr){
+    if(cur === 'INR') return 1;
+    const rates = defaultRates[cur];
+    if(!rates) return 1;
+    const month = dateStr ? String(dateStr).slice(0,7) : '';
+    if(rates[month] > 0) return rates[month];
+    const months = Object.keys(rates).sort();
+    let pick = months[months.length-1];
+    for(const m of months){ if(m <= month) pick = m; else break; }
+    return rates[pick];
+  }
+
+  for(let i=0; i<rows.length; i++){
+    const r = rows[i];
+    const cur = normalizeCurrency(r.currency, r);
+    const fxRate = lookupFx(cur, r.poDate || r.invoiceDate);
+    r._fxRate = fxRate;
+
+    // Always: total invoice INR + per-unit INR rate
+    const payable = (r.payable != null) ? r.payable : (r.amount != null ? r.amount : 0);
+    r._inrAmount = Math.round(payable * fxRate * 100) / 100;
+    r._inrRate = Math.round((r.basicRate || 0) * fxRate * 100) / 100;
+
+    // Solar Cell INR conversions
+    if(r._isSolarCell && r._wp > 0){
+      r._inrPerCell = Math.round((r.basicRate || 0) * fxRate * 100) / 100;       // ₹/cell
+      r._inrPerWp   = Math.round(((r.basicRate || 0) * fxRate / r._wp) * 10000) / 10000; // ₹/Wp
+      r._invoiceTotalINR = r._inrAmount;
     }
-    
-    // For Solar Cell: also compute per-Wp INR rate
-    if(r._wp > 0){
-      r._inrRate = r._inrRate / r._wp; // INR per Wp
-      if(!r._unitLabel) r._unitLabel = 'Wp';
+
+    // Al Frame INR conversions
+    if(r._isAlFrame){
+      r._inrPerFramePc = Math.round((r.basicRate || 0) * fxRate * 100) / 100;
+      if(r._costPerSet > 0)   r._costPerSetINR  = Math.round(r._costPerSet * fxRate * 100) / 100;
+      if(r._totalSetCost > 0) r._totalSetCostINR = Math.round(r._totalSetCost * fxRate * 100) / 100;
     }
-    // For Al Frame: _inrRate is already per-piece, _costPerSet is per-set
-    if(r._costPerSet > 0 && cur !== 'INR'){
-      r._costPerSet = r._costPerSet * (r._fxRate || 1);
+
+    // Glass INR conversions
+    if(r._isGlass){
+      if(r._glassRatePerPcNat != null) r._glassRatePerPc    = Math.round(r._glassRatePerPcNat * fxRate * 100) / 100;
+      if(r._glassRatePerSqm  != null)  r._glassRatePerSqmINR = Math.round(r._glassRatePerSqm * fxRate * 100) / 100;
+      r._glassTotalINR = r._inrAmount;
     }
   }
 }
@@ -4440,21 +4596,30 @@ renderTableBody = function(){
   // Auto-hide item-specific columns based on active filter
   const selectedItems = state.filters['itemCode'];
   let colsChanged = false;
+  // Full per-category column lists
+  const solarCols = ['_wp','_wpTotal','_ratePerWp','_inrPerWp','_inrPerCell','_invoiceTotalINR'];
+  const frameCols = ['_frameType','_frameInfo','_sets','_costPerSet','_costPerSetINR','_inrPerFramePc','_totalSetCost','_totalSetCostINR'];
+  const glassCols = ['_glassAreaPerPc','_glassQtyPcs','_glassQtySqm','_glassRatePerSqm','_glassRatePerSqmINR','_glassRatePerPc','_glassRatePerPcNat','_glassTotalINR'];
+  const allSpecial = [...solarCols, ...frameCols, ...glassCols];
   if(selectedItems && selectedItems.size > 0){
     const items = [...selectedItems].map(s=>s.toLowerCase());
     const hasSolar = items.some(i=>i.indexOf('solar')!==-1 && i.indexOf('cell')!==-1);
     const hasFrame = items.some(i=>i.indexOf('frame')!==-1 || i.indexOf('al.')!==-1);
     const hasGlass = items.some(i=>i.indexOf('glass')!==-1);
-    const solarCols = ['_inrPerWp','_wpTotal'];
-    const frameCols = ['_frameInfo','_costPerSetINR'];
-    const glassCols = ['_glassAreaPerPc','_glassQtyPcs','_glassRatePerPc'];
     const before = state.visibleCols.length;
+    // Strip non-applicable special columns
     if(!hasSolar) solarCols.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
     if(!hasFrame) frameCols.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
     if(!hasGlass) glassCols.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
+    // Add the relevant ones
     if(hasSolar) solarCols.forEach(k=>{ if(!state.visibleCols.includes(k)) state.visibleCols.push(k); });
     if(hasFrame) frameCols.forEach(k=>{ if(!state.visibleCols.includes(k)) state.visibleCols.push(k); });
     if(hasGlass) glassCols.forEach(k=>{ if(!state.visibleCols.includes(k)) state.visibleCols.push(k); });
+    if(state.visibleCols.length !== before) colsChanged = true;
+  } else {
+    // No item filter: hide ALL special-category columns to keep the table tidy
+    const before = state.visibleCols.length;
+    allSpecial.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
     if(state.visibleCols.length !== before) colsChanged = true;
   }
   // Re-render header if columns changed to keep alignment
@@ -5385,41 +5550,65 @@ const PUBLISHED_CSVS = [
   {url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vSGx8nrYKbAGHVaLf83MEdInYzCGt6P7aDuz9Hh_c6cQMfhBq7jb0c_j-LvmtkS_k9TuRdKYPMU3BCk/pub?gid=2048397162&single=true&output=csv', name:'Other material 25-26', kind:'other', year:'25-26'},
 ];
 
-function pickGoogleSheets(){
+// Generic sheet picker — works for both PUBLISHED_CSVS (CSV mode) and Apps Script-derived lists.
+// Takes a list of items: [{name, year, kind}], plus options { title, subtitle, storageKey }.
+function pickSheetsFromList(items, opts){
+  opts = opts || {};
   return new Promise(function(resolve, reject){
     var modal = document.getElementById('gsPickerModal');
     var list  = document.getElementById('gsPickerList');
-    if(!modal || !list){ resolve(PUBLISHED_CSVS.map(function(_,i){return i;})); return; }
-    list.innerHTML = '';
-    // Default: remember last selection
+    var search = document.getElementById('gsPickerSearch');
+    var titleEl = document.getElementById('gsPickerTitle');
+    var subEl = document.getElementById('gsPickerSubtitle');
+    if(!modal || !list){ resolve(items.map(function(_,i){return i;})); return; }
+    if(titleEl) titleEl.textContent = opts.title || '📡 Pick sheets to load';
+    if(subEl)   subEl.textContent   = opts.subtitle || 'Pick which sheets to fetch. Selecting fewer makes loading faster.';
+    if(search) search.value = '';
+
+    var storageKey = opts.storageKey || 'mis.gsPicker';
     var saved;
-    try{ saved = JSON.parse(localStorage.getItem('mis.gsPicker')||'null'); }catch(e){ saved=null; }
+    try{ saved = JSON.parse(localStorage.getItem(storageKey)||'null'); }catch(e){ saved=null; }
     var selected = new Set();
     if(Array.isArray(saved) && saved.length){
-      saved.forEach(function(i){ if(i>=0 && i<PUBLISHED_CSVS.length) selected.add(i); });
+      saved.forEach(function(i){ if(i>=0 && i<items.length) selected.add(i); });
     } else {
-      PUBLISHED_CSVS.forEach(function(_,i){ selected.add(i); });
+      items.forEach(function(_,i){ selected.add(i); });
     }
+    var filterText = '';
 
     function refresh(){
       list.innerHTML = '';
-      PUBLISHED_CSVS.forEach(function(s, i){
+      var anyShown = false;
+      items.forEach(function(s, i){
+        var hay = (s.name + ' ' + (s.year||'') + ' ' + (s.kind||'')).toLowerCase();
+        if(filterText && hay.indexOf(filterText) === -1) return;
+        anyShown = true;
         var item = document.createElement('div');
         item.className = 'sheet-item' + (selected.has(i) ? ' selected' : '');
-        var icon = s.kind === 'bom' ? '📋' : '📦';
-        item.innerHTML = '<span class="name">'+icon+' '+s.name+'</span><span class="info">'+s.year+'</span>';
+        var icon = s.kind === 'bom' ? '📋' : (s.kind === 'other' ? '📦' : '📄');
+        var info = (s.year ? s.year : '') + (s.year && s.kind ? ' · ' : '') + (s.kind || '');
+        item.innerHTML = '<span class="name">'+icon+' '+s.name+'</span><span class="info">'+info+'</span>';
         item.addEventListener('click', function(){
           if(selected.has(i)){ selected.delete(i); } else { selected.add(i); }
           refresh();
         });
         list.appendChild(item);
       });
+      if(!anyShown){
+        var empty = document.createElement('div');
+        empty.style.cssText = 'padding:20px;text-align:center;color:var(--muted);font-size:12px';
+        empty.textContent = 'No sheets match "' + filterText + '"';
+        list.appendChild(empty);
+      }
     }
     refresh();
 
+    var searchHandler = function(e){ filterText = String(e.target.value || '').toLowerCase().trim(); refresh(); };
+    if(search) search.addEventListener('input', searchHandler);
+
     function setOnly(filterFn){
       selected.clear();
-      PUBLISHED_CSVS.forEach(function(s,i){ if(filterFn(s)) selected.add(i); });
+      items.forEach(function(s,i){ if(filterFn(s)) selected.add(i); });
       refresh();
     }
     var allBtn = document.getElementById('gsPickAll');
@@ -5440,6 +5629,7 @@ function pickGoogleSheets(){
 
     function cleanup(){
       modal.classList.remove('show');
+      if(search) search.removeEventListener('input', searchHandler);
       allBtn.removeEventListener('click', onAll);
       noneBtn.removeEventListener('click', onNone);
       bomBtn.removeEventListener('click', onBom);
@@ -5452,7 +5642,7 @@ function pickGoogleSheets(){
     var onLoad = function(){
       if(selected.size===0){ toast('Select at least one sheet', 'warn'); return; }
       var arr = [...selected].sort();
-      try{ localStorage.setItem('mis.gsPicker', JSON.stringify(arr)); }catch(e){}
+      try{ localStorage.setItem(storageKey, JSON.stringify(arr)); }catch(e){}
       cleanup(); resolve(arr);
     };
     var onCancel = function(){ cleanup(); reject(new Error('cancelled')); };
@@ -5467,6 +5657,16 @@ function pickGoogleSheets(){
     cancelBtn.addEventListener('click', onCancel);
 
     modal.classList.add('show');
+    if(search) setTimeout(()=>search.focus(), 100);
+  });
+}
+
+// Backward-compat: pickGoogleSheets uses PUBLISHED_CSVS as items
+function pickGoogleSheets(){
+  return pickSheetsFromList(PUBLISHED_CSVS, {
+    title: '📡 Load from Google Sheets',
+    subtitle: 'Pick which sheets to fetch live. Selecting fewer makes loading faster.',
+    storageKey: 'mis.gsPicker',
   });
 }
 
@@ -5588,20 +5788,26 @@ async function fetchFromPublishedSheets(){
 
 document.getElementById('emptyLiveBtn').addEventListener('click', fetchFromPublishedSheets);
 document.getElementById('menuLiveSheets').addEventListener('click', fetchFromPublishedSheets);
+{ const b = document.getElementById('emptyAppsScriptBtn'); if(b) b.addEventListener('click', () => fetchFromAppsScript()); }
 
 // ============================================================
 // Apps Script live JSON endpoint — instant refresh (no CSV cache)
 // Supports MULTIPLE endpoints (one per spreadsheet); fetches in parallel.
+// Hardcoded defaults so users don't have to paste URLs.
 // ============================================================
+const APPS_SCRIPT_URLS_DEFAULT = [
+  'https://script.google.com/macros/s/AKfycbz4FDXEaEKVt3xKFI8-wmNiz729QIskaxkJdOvgX0osi_pEoCzaGlGwBOFqodFMfAK1/exec',
+  'https://script.google.com/macros/s/AKfycbzEzBf3XF0ky2NA5afOJr1WGVgS5Mqj34TH66VzZ9qZvQU-rpWVT4zxgDvMBNF88I60/exec',
+];
 function getAppsScriptUrls(){
   try{
     const raw = localStorage.getItem('mis.appsScriptUrls');
-    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr)) return arr.filter(Boolean); }
+    if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length) return arr.filter(Boolean); }
     // Migrate legacy single-URL setting
     const single = localStorage.getItem('mis.appsScriptUrl');
     if(single) return [single];
   }catch(e){}
-  return [];
+  return APPS_SCRIPT_URLS_DEFAULT.slice();
 }
 function setAppsScriptUrls(arr){
   try{
@@ -5646,14 +5852,58 @@ function promptForAppsScriptUrls(prefill){
   return urls;
 }
 
+// Map an Apps Script URL to expected sheet tags. The script for 26-27 returns BOM 26-27 and
+// Other material 26-27. The script for 25-26 returns BOM 25-26 and Other material 25-26. We
+// figure out which is which by checking the URL against our defaults.
+function _appsScriptUrlYear(url){
+  if(url === APPS_SCRIPT_URLS_DEFAULT[0]) return '26-27';
+  if(url === APPS_SCRIPT_URLS_DEFAULT[1]) return '25-26';
+  return null;
+}
+function _appsScriptInferredSheets(urls){
+  // Returns flat list of {name, year, kind, url} so the picker can show one item per actual sheet.
+  const items = [];
+  urls.forEach(function(url){
+    const year = _appsScriptUrlYear(url);
+    if(year){
+      items.push({ name: 'BOM ' + year,            year: year, kind: 'bom',   url: url });
+      items.push({ name: 'Other material ' + year, year: year, kind: 'other', url: url });
+    } else {
+      // unknown URL — list it as a single generic entry
+      const short = url.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 18) + '…';
+      items.push({ name: 'Apps Script: ' + short, kind: 'other', url: url });
+    }
+  });
+  return items;
+}
+
 async function fetchFromAppsScript(opts){
   opts = opts || {};
   const silent = !!opts.silent;
   let urls = opts.urls || getAppsScriptUrls();
   if(!urls.length){
-    urls = promptForAppsScriptUrls([]);
-    if(!urls || !urls.length) return;
-    setAppsScriptUrls(urls);
+    // Fallback to baked-in defaults — should never reach here since getAppsScriptUrls returns defaults
+    urls = APPS_SCRIPT_URLS_DEFAULT.slice();
+  }
+
+  // Show sheet picker first (skip if opts.silent — used by Refresh button)
+  let acceptedTags = null;
+  if(!silent){
+    const items = _appsScriptInferredSheets(urls);
+    let picked;
+    try{
+      picked = await pickSheetsFromList(items, {
+        title: '⚡ Load via Apps Script (live)',
+        subtitle: 'Pick which sheets to load. Faster fetch via direct API (bypasses CSV cache).',
+        storageKey: 'mis.appsScriptPicker',
+      });
+    }catch(e){ return; /* cancelled */ }
+    acceptedTags = new Set(picked.map(i => items[i].name));
+    // Reduce urls to only those that have at least one selected sheet
+    const usedUrls = new Set();
+    picked.forEach(i => usedUrls.add(items[i].url));
+    urls = urls.filter(u => usedUrls.has(u));
+    if(!urls.length) return;
   }
 
   const overlay = document.getElementById('loadingOverlay');
@@ -5689,9 +5939,33 @@ async function fetchFromAppsScript(opts){
   let totalServerMs = 0;
   let done = 0;
 
+  // Live elapsed-seconds counter so user sees something is happening
+  const elapsedTimer = setInterval(() => {
+    const sec = ((performance.now() - t0) / 1000).toFixed(1);
+    statusEl && statusEl.querySelectorAll('.row').forEach(row => {
+      const idx = parseInt(row.dataset.idx, 10);
+      const ico = row.querySelector('.ico');
+      const count = row.querySelector('.count');
+      if(ico && ico.classList.contains('spin') && count){
+        count.textContent = 'connecting · ' + sec + 's';
+      }
+    });
+    if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints · ' + sec + 's elapsed';
+  }, 250);
+
+  function fetchWithTimeout(url, ms){
+    const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
+    const opts = { cache:'no-store', redirect:'follow' };
+    if(ctrl) opts.signal = ctrl.signal;
+    return fetch(url, opts).finally(() => { if(timer) clearTimeout(timer); });
+  }
+
+  const TIMEOUT_MS = 90000; // Apps Script can be slow on first call (~5-10s warm-up)
+
   const promises = urls.map(async function(url, i){
     try{
-      const resp = await fetch(url, { cache:'no-store', redirect:'follow' });
+      const resp = await fetchWithTimeout(url, TIMEOUT_MS);
       if(!resp.ok) throw new Error('HTTP ' + resp.status);
       const payload = await resp.json();
       if(!payload || payload.ok === false) throw new Error(payload && payload.error || 'bad payload');
@@ -5699,6 +5973,8 @@ async function fetchFromAppsScript(opts){
       let rowsHere = 0;
       for(const s of sheets){
         if(s.error){ sheetInfo.push(s.tag + ' (' + s.error + ')'); continue; }
+        // Skip sheets the user didn't pick
+        if(acceptedTags && !acceptedTags.has(s.tag)) continue;
         const rs = appsScriptRowsToObjects(s.data, s.tag);
         rs.forEach(r => { r._source = 'Apps Script (live)'; r._sheet = s.tag; });
         allRows.push(...rs);
@@ -5709,17 +5985,18 @@ async function fetchFromAppsScript(opts){
       setRow(i, '✓', 'ok', rowsHere + ' rows · ' + (payload.elapsedMs||0) + 'ms');
     }catch(e){
       console.error('Apps Script fetch failed:', url, e);
-      setRow(i, '✕', 'err', e.message || 'failed');
+      const msg = (e.name === 'AbortError') ? 'timeout (>90s)' : (e.message || 'failed');
+      setRow(i, '✕', 'err', msg);
     }
     done++;
     if(progress){
       const pct = 4 + Math.round((done/urls.length) * 90);
       progress.querySelector('.bar').style.width = pct + '%';
     }
-    if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints loaded';
   });
 
   await Promise.all(promises);
+  clearInterval(elapsedTimer);
   const totalMs = Math.round(performance.now() - t0);
 
   if(allRows.length){
@@ -5751,23 +6028,22 @@ async function fetchFromAppsScript(opts){
 }
 
 document.getElementById('menuAppsScript').addEventListener('click', () => {
-  const cur = getAppsScriptUrls();
-  if(cur.length){
+  // Apps Script URLs are baked-in defaults. Just fire the picker + fetch.
+  // To customize URLs, hold Shift while clicking.
+  if(window.event && window.event.shiftKey){
+    const cur = getAppsScriptUrls();
     const next = promptForAppsScriptUrls(cur);
     if(next === null) return;
     if(!next.length){
       try{ localStorage.removeItem('mis.appsScriptUrls'); }catch(e){}
       try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){}
-      toast('Apps Script URLs cleared.', 'info');
+      toast('Custom Apps Script URLs cleared. Defaults will be used next time.', 'info');
       return;
     }
     setAppsScriptUrls(next);
     fetchFromAppsScript({ urls: next });
   } else {
-    const next = promptForAppsScriptUrls([]);
-    if(!next || !next.length) return;
-    setAppsScriptUrls(next);
-    fetchFromAppsScript({ urls: next });
+    fetchFromAppsScript();
   }
 });
 
