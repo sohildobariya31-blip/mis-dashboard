@@ -2295,12 +2295,12 @@ const state = {
     card1:{dim:'category', metric:'payable', type:'doughnut', values:true, labelMode:'auto', topN:9999},
     card2:{dim:'module',   metric:'payable', type:'doughnut', values:true, labelMode:'auto', topN:9999},
     card3:{dim:'status',   metric:'count',   type:'doughnut', values:true, labelMode:'auto', topN:9999},
-    vendor:{dim:'supplier',metric:'payable', type:'hbar',     values:true, labelMode:'auto', topN:9999},
-    item:  {dim:'itemCode',metric:'payable', type:'hbar',     values:true, labelMode:'auto', topN:9999},
+    vendor:{dim:'supplier',metric:'payable', type:'hbar',     values:true, labelMode:'auto', topN:5},
+    item:  {dim:'itemCode',metric:'payable', type:'hbar',     values:true, labelMode:'auto', topN:5},
   },
   trend:{ metric:'payable', labelMode:'off' },
-  cmp:{ dim:'supplier', metrics:new Set(['payable','paid','outstanding']), topN:9999, stacked:false, labelMode:'auto' },
-  pop:{ dim:'supplier', metric:'payable', topN:9999, labelMode:'auto' },
+  cmp:{ dim:'supplier', metrics:new Set(['payable','paid','outstanding']), topN:5, stacked:false, labelMode:'auto' },
+  pop:{ dim:'supplier', metric:'payable', topN:5, labelMode:'auto' },
   stk:{ x:'month', by:'category', metric:'payable', labelMode:'off' },
   // FX
   fx:{
@@ -4151,19 +4151,19 @@ function render(){
     renderTrend(filtered);
   }
 
-  // Configurable cards
-  renderConfigurableCard(filtered, 'card1', 'chCard1');
-  renderConfigurableCard(filtered, 'card2', 'chCard2');
-  renderConfigurableCard(filtered, 'card3', 'chCard3');
-  renderConfigurableCard(filtered, 'vendor', 'chVendor');
-  renderConfigurableCard(filtered, 'item',   'chItem');
+  // Configurable cards (each wrapped so one failure doesn't block others)
+  try { renderConfigurableCard(filtered, 'card1', 'chCard1'); } catch(e) { console.error('card1 error:', e); }
+  try { renderConfigurableCard(filtered, 'card2', 'chCard2'); } catch(e) { console.error('card2 error:', e); }
+  try { renderConfigurableCard(filtered, 'card3', 'chCard3'); } catch(e) { console.error('card3 error:', e); }
+  try { renderConfigurableCard(filtered, 'vendor', 'chVendor'); } catch(e) { console.error('vendor error:', e); }
+  try { renderConfigurableCard(filtered, 'item',   'chItem'); } catch(e) { console.error('item error:', e); }
   syncCardTitles();
 
-  // Comparisons
-  renderCompare(filtered);
-  renderPoP();
-  renderStack(filtered);
-  renderPriceTrend(filtered);
+  // Comparisons (each wrapped individually so one failure doesn't block others)
+  try { renderCompare(filtered); } catch(e) { console.error('renderCompare error:', e); }
+  try { renderPoP(); } catch(e) { console.error('renderPoP error:', e); }
+  try { renderStack(filtered); } catch(e) { console.error('renderStack error:', e); }
+  try { renderPriceTrend(filtered); } catch(e) { console.error('renderPriceTrend error:', e); }
 
   renderActivePills();
   renderTable();
