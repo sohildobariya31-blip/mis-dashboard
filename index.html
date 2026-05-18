@@ -396,7 +396,7 @@ header .btn-row .btn.ghost{padding:7px 10px}
 .dd-caret{color:var(--muted);font-size:11px;transition:transform .2s ease}
 .fgroup-dd.open .dd-caret{transform:rotate(180deg);color:var(--accent)}
 .dd-popover{
-  display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:50;
+  display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:999;
   background:var(--card);border:1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
   border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.35);
   padding:10px;max-height:320px;overflow:hidden;
@@ -435,7 +435,7 @@ header .btn-row .btn.ghost{padding:7px 10px}
 
 /* Make fgroup-dd position relative for popover */
 .fgroup-dd{position:relative;overflow:visible}
-.fgroup-dd.open{z-index:55}
+.fgroup-dd.open{z-index:1000}
 
 /* Records sub-tabs */
 .rec-tabs{
@@ -1678,6 +1678,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
       <button class="rec-tab active" data-rec-sheet="all">All</button>
       <button class="rec-tab" data-rec-sheet="bom2627">BOM 26-27</button>
       <button class="rec-tab" data-rec-sheet="bom2526">BOM 25-26</button>
+      <button class="rec-tab" data-rec-sheet="bom">BOM (All)</button>
       <button class="rec-tab" data-rec-sheet="other2627">Other 26-27</button>
       <button class="rec-tab" data-rec-sheet="other2526">Other 25-26</button>
     </div>
@@ -1784,6 +1785,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
         <button class="rec-tab active" data-pay-sheet="all">All</button>
         <button class="rec-tab" data-pay-sheet="bom2627">BOM 26-27</button>
         <button class="rec-tab" data-pay-sheet="bom2526">BOM 25-26</button>
+        <button class="rec-tab" data-pay-sheet="bom">BOM (All)</button>
         <button class="rec-tab" data-pay-sheet="other2627">Other 26-27</button>
         <button class="rec-tab" data-pay-sheet="other2526">Other 25-26</button>
       </div>
@@ -2173,7 +2175,7 @@ window._dashboardReload = function(parsed){
   document.getElementById('dashContent').style.display = '';
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('mainTabs').style.display = '';
-  try { render(); } catch(e) { console.error('render() error:', e); }
+  render();
   if(typeof refreshFxTab === 'function') refreshFxTab();
   // Defer localStorage save to avoid blocking the main thread
   setTimeout(function(){ try{ localStorage.setItem('mis_dashboard_data', JSON.stringify({rows: parsed.rows, meta: parsed.meta})); }catch(e){} }, 1000);
@@ -2366,6 +2368,7 @@ function paySheetFilter(rows) {
     const source = (r._source || '').toLowerCase();
     const combined = sheet + ' ' + source;
     switch (state.paySheet) {
+      case 'bom': return sheet.indexOf('bom') !== -1;
       case 'bom2627': return sheet.indexOf('bom') !== -1 && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
       case 'bom2526': return sheet.indexOf('bom') !== -1 && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
       case 'other2627': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
@@ -4064,8 +4067,6 @@ function render(){
   if(typeof computeDerivedFields === 'function') computeDerivedFields(RAW);
   const filtered = applyChartFilters(RAW);
 
-  // KPIs and charts — wrapped in try/catch so table always renders
-  try {
   // KPIs — branch based on Dashboard Mode
   if (state.dashMode === 'payment') {
     renderPaymentKPIs(filtered);
@@ -4163,7 +4164,6 @@ function render(){
   renderPoP();
   renderStack(filtered);
   renderPriceTrend(filtered);
-  } catch(e) { console.error('Dashboard render error:', e); }
 
   renderActivePills();
   renderTable();
@@ -4899,9 +4899,9 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     if(tab !== 'poregister' && tab !== 'payments'){
       if(dc && RAW && RAW.length > 0) dc.style.display = '';
     }
-    // Render payments table when payments tab becomes active
+    // Render payments table when payments tab becomes active (deferred for smooth tab switch)
     if(tab === 'payments'){
-      if(typeof renderPayments === 'function') { state._payStale = false; renderPayments(); }
+      if(typeof renderPayments === 'function') { state._payStale = false; setTimeout(renderPayments, 50); }
     }
     // Trigger chart resize when switching to dashboard tab
     if(tab === 'dashboard'){
@@ -5552,6 +5552,7 @@ renderTableBody = function(){
       const source = (r._source || '').toLowerCase();
       const combined = sheet + ' ' + source;
       switch(state.recSheet){
+        case 'bom': return sheet.indexOf('bom') !== -1;
         case 'bom2627': return sheet.indexOf('bom') !== -1 && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
         case 'bom2526': return sheet.indexOf('bom') !== -1 && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
         case 'other2627': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
