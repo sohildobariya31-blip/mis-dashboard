@@ -4151,8 +4151,14 @@ function render(){
   renderActivePills();
   renderTable();
 
-  // Update Payments tab data on every render pass (filter change, data refresh, etc.)
-  if(typeof renderPayments === 'function') renderPayments();
+  // Update Payments tab data only when the tab is active (avoids blocking render with 10k+ row table)
+  if(typeof renderPayments === 'function') {
+    if(document.getElementById('tab-payments') && document.getElementById('tab-payments').classList.contains('active')) {
+      renderPayments();
+    } else {
+      state._payStale = true; // Mark stale so it re-renders when tab becomes active
+    }
+  }
 
   window.__rendered = true;
 }
@@ -4879,7 +4885,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     }
     // Render payments table when payments tab becomes active
     if(tab === 'payments'){
-      if(typeof renderPayments === 'function') renderPayments();
+      if(typeof renderPayments === 'function') { state._payStale = false; renderPayments(); }
     }
     // Trigger chart resize when switching to dashboard tab
     if(tab === 'dashboard'){
