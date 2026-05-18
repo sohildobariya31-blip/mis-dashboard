@@ -2175,7 +2175,7 @@ window._dashboardReload = function(parsed){
   document.getElementById('dashContent').style.display = '';
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('mainTabs').style.display = '';
-  render();
+  try { render(); } catch(e) { console.error('render() crashed:', e); }
   if(typeof refreshFxTab === 'function') refreshFxTab();
   // Defer localStorage save to avoid blocking the main thread
   setTimeout(function(){ try{ localStorage.setItem('mis_dashboard_data', JSON.stringify({rows: parsed.rows, meta: parsed.meta})); }catch(e){} }, 1000);
@@ -3103,7 +3103,7 @@ function readTopFilters(){
   state.kpiMetric  = document.getElementById('kpiMetric').value;
   state.paymentMetric = document.getElementById('paymentMetric').value;
   state.sheetFilter = document.getElementById('sheetFilter').value;
-  state.dashMode = document.getElementById('dashMode').value;
+  state.dashMode = (document.getElementById('dashMode') || {}).value || 'full';
   state.from = document.getElementById('fromDate').value || null;
   state.to   = document.getElementById('toDate').value   || null;
   state.search = document.getElementById('tblSearch').value.toLowerCase().trim();
@@ -4069,7 +4069,7 @@ function render(){
 
   // KPIs — branch based on Dashboard Mode
   if (state.dashMode === 'payment') {
-    renderPaymentKPIs(filtered);
+    try { renderPaymentKPIs(filtered); } catch(e) { console.error('Payment KPIs error:', e); }
   } else {
     // Restore original KPI structure if it was replaced by payment mode
     const kpisEl = document.getElementById('kpis');
@@ -4146,7 +4146,7 @@ function render(){
 
   // Trend — branch based on Dashboard Mode
   if (state.dashMode === 'payment') {
-    renderPaymentTrend(filtered);
+    try { renderPaymentTrend(filtered); } catch(e) { console.error('Payment Trend error:', e); }
   } else {
     renderTrend(filtered);
   }
@@ -4183,7 +4183,7 @@ function render(){
 /* =========================================================================
    Listeners
    ========================================================================= */
-['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric','dashMode'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ render(); setMetaText(); }));
+['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric','dashMode'].forEach(id=>{var el=document.getElementById(id); if(el) el.addEventListener('change', ()=>{ render(); setMetaText(); });});
 document.getElementById('sheetFilter').addEventListener('change', ()=>{
   // 1. First sync the dropdown value into state
   state.sheetFilter = document.getElementById('sheetFilter').value;
