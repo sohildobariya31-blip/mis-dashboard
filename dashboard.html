@@ -2176,12 +2176,13 @@ window._dashboardReload = function(parsed){
   document.getElementById('dashContent').style.display = '';
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('mainTabs').style.display = '';
+  // Switch to Dashboard tab FIRST so charts render to visible canvases
+  const dashTab = document.querySelector('.tab-btn[data-tab="dashboard"]');
+  if(dashTab) dashTab.click();
   try { render(); } catch(e) { console.error('render() crashed:', e); }
   if(typeof refreshFxTab === 'function') refreshFxTab();
   // Defer localStorage save to avoid blocking the main thread
   setTimeout(function(){ try{ localStorage.setItem('mis_dashboard_data', JSON.stringify({rows: parsed.rows, meta: parsed.meta})); }catch(e){} }, 1000);
-  const dashTab = document.querySelector('.tab-btn[data-tab="dashboard"]');
-  if(dashTab) dashTab.click();
 };
 
 const ALL_COLUMNS = [
@@ -4904,9 +4905,14 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     if(tab === 'payments'){
       if(typeof renderPayments === 'function') { state._payStale = false; setTimeout(renderPayments, 50); }
     }
-    // Trigger chart resize when switching to dashboard tab
+    // Trigger chart re-render when switching to dashboard tab (clear hash cache so charts rebuild)
     if(tab === 'dashboard'){
-      setTimeout(()=>{ Object.values(charts).forEach(c=>{ if(c && c.resize) c.resize(); }); }, 50);
+      // Clear chart data hash so charts re-render to visible canvases
+      if(typeof _chartDataHash !== 'undefined') Object.keys(_chartDataHash).forEach(k => delete _chartDataHash[k]);
+      setTimeout(()=>{ 
+        try { render(); } catch(e) { console.error('render on tab switch:', e); }
+        Object.values(charts).forEach(c=>{ if(c && c.resize) c.resize(); }); 
+      }, 50);
     }
   });
 });
