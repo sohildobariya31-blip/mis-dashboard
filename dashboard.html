@@ -1077,6 +1077,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     <button class="tab-btn active" data-tab="filters">🔍 Filters & Settings</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
     <button class="tab-btn" data-tab="table">📋 Records</button>
+    <button class="tab-btn" data-tab="poregister">📦 PO Register</button>
   </div>
 
   <!-- TAB: FILTERS & SETTINGS -->
@@ -1666,6 +1667,50 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 
   </div><!-- /tab-table -->
 
+  <!-- TAB: PO REGISTER -->
+  <div class="tab-panel" id="tab-poregister">
+  <div class="section-h"><h2>Purchase Order Register</h2><div class="line"></div></div>
+  <div class="card animate">
+    <h3>
+      PO Register <span class="hint" id="poRegHint">Upload Purchase Order Register.xlsx or load from source</span>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn ghost" id="poRegUploadBtn">📂 Upload PO Register</button>
+        <input type="file" id="poRegFileInput" accept=".xlsx,.xls" style="display:none"/>
+      </span>
+    </h3>
+    <!-- Sub-tabs for year sheets -->
+    <div class="rec-tabs" id="poRegTabs">
+      <button class="rec-tab active" data-poreg-sheet="all">All</button>
+      <button class="rec-tab" data-poreg-sheet="26-27">26-27</button>
+      <button class="rec-tab" data-poreg-sheet="25-26">25-26</button>
+      <button class="rec-tab" data-poreg-sheet="longi2526">Longi (25-26)</button>
+      <button class="rec-tab" data-poreg-sheet="24-25">24-25</button>
+    </div>
+    <div id="poRegSummary" style="padding:8px 14px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb, var(--bg2) 90%, transparent),color-mix(in srgb, var(--card) 90%, transparent));border:1px solid var(--border);border-radius:10px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+      <span style="font-weight:700;color:var(--text)">📦 Summary</span>
+      <span id="poRegSumRows" style="color:var(--muted)">No data loaded</span>
+    </div>
+    <div class="table-toolbar">
+      <input id="poRegSearch" placeholder="Search PO Register..."/>
+      <select id="poRegStatus" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">
+        <option value="">All status</option>
+        <option value="In Transit">In Transit</option>
+        <option value="Received">Received</option>
+        <option value="Pending">Pending</option>
+        <option value="On Hold">On Hold</option>
+      </select>
+    </div>
+    <div class="table-scroll" style="max-height:600px">
+      <table>
+        <thead>
+          <tr id="poRegThRow"></tr>
+        </thead>
+        <tbody id="poRegTbody"></tbody>
+      </table>
+    </div>
+  </div>
+  </div><!-- /tab-poregister -->
+
   </div><!-- /#dashContent -->
 </div>
 
@@ -1748,7 +1793,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.18</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.19</span></footer>
 
 
 <script>
@@ -7029,6 +7074,200 @@ if(RAW.length > 0){
   var srcName2 = document.getElementById('dataSourceName');
   if(srcTag2 && srcName2){ srcTag2.style.display = 'inline-block'; srcName2.textContent = META.sourceFile || 'Cached'; }
 }
+
+/* =========================================================================
+   PO Register Tab — standalone record-keeping table
+   ========================================================================= */
+(function(){
+  const PO_COLS = [
+    {key:'category',label:'Category'},
+    {key:'poNo',label:'PO no'},
+    {key:'poDate',label:'PO Date'},
+    {key:'supplier',label:'Supplier'},
+    {key:'module',label:'Module type'},
+    {key:'materialName',label:'Material Name'},
+    {key:'description',label:'Description'},
+    {key:'variant',label:'Variant'},
+    {key:'qty',label:'Qty'},
+    {key:'uom',label:'UOM'},
+    {key:'coo',label:'COO'},
+    {key:'invoiceNo',label:'Invoice no'},
+    {key:'container',label:'Container'},
+    {key:'blNo',label:'AWB/BL no'},
+    {key:'etd',label:'ETD'},
+    {key:'etaPort',label:'ETA Port'},
+    {key:'etaFactory',label:'ETA Factory'},
+    {key:'actualDate',label:'Actual Date'},
+    {key:'project',label:'Project Code'},
+    {key:'status',label:'Status'},
+    {key:'testReport',label:'Test report'},
+    {key:'remarks',label:'Remarks'},
+  ];
+
+  const PO_HMAP = {
+    'categorybom':'category','category':'category',
+    'pono':'poNo','podate':'poDate',
+    'nameofsupplier':'supplier','supplier':'supplier',
+    'moduletype':'module','module':'module',
+    'materialname':'materialName','materialdescription':'description','description':'description',
+    'variant':'variant','qty':'qty','uom':'uom','coo':'coo',
+    'invoiceno':'invoiceNo','container':'container',
+    'awbblno':'blNo','blno':'blNo',
+    'etd':'etd','etaport':'etaPort','etaatfactory':'etaFactory','etafactory':'etaFactory',
+    'actualdateofsupply':'actualDate','actualdate':'actualDate',
+    'projectcode':'project','project':'project',
+    'status':'status','testreport':'testReport','remarks':'remarks',
+  };
+  const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+
+  let poData = []; // {sheetName, rows:[]}
+  let poActiveSheet = 'all';
+  let poSearch = '';
+  let poStatusFilter = '';
+
+  // Parse a PO Register sheet
+  function parsePOSheet(wb, sheetName){
+    const ws = wb.Sheets[sheetName];
+    if(!ws) return [];
+    const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null, blankrows:false});
+    if(aoa.length < 2) return [];
+    // Find header row
+    let headerIdx = -1, headerMap = {};
+    for(let i=0; i<Math.min(5, aoa.length); i++){
+      const row = aoa[i]; if(!row) continue;
+      const map = {}; let known = 0;
+      row.forEach((cell, idx) => { if(!cell) return; const k = PO_HMAP[norm(cell)]; if(k){ map[idx]=k; known++; } });
+      if(known >= 4){ headerIdx = i; headerMap = map; break; }
+    }
+    if(headerIdx < 0) return [];
+    const rows = [];
+    for(let i = headerIdx+1; i < aoa.length; i++){
+      const row = aoa[i]; if(!row) continue;
+      const rec = {}; let nonEmpty = false;
+      for(const [idxStr, key] of Object.entries(headerMap)){
+        let v = row[+idxStr];
+        if(v == null || v === ''){ rec[key] = null; continue; }
+        // Date serial conversion
+        if((key.indexOf('date') !== -1 || key === 'etd' || key === 'etaPort' || key === 'etaFactory' || key === 'actualDate') && typeof v === 'number' && v > 25569){
+          const dn = Math.round((v - 25569) * 86400 * 1000);
+          const d = new Date(dn);
+          v = d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+        }
+        if(typeof v === 'string') v = v.trim() || null;
+        rec[key] = v;
+        if(v != null) nonEmpty = true;
+      }
+      if(!nonEmpty) continue;
+      if(!rec.poNo && !rec.supplier && !rec.materialName && !rec.description) continue;
+      rec._sheet = sheetName;
+      rows.push(rec);
+    }
+    return rows;
+  }
+
+  // Render the PO Register table
+  function renderPOTable(){
+    const thRow = document.getElementById('poRegThRow');
+    const tbody = document.getElementById('poRegTbody');
+    if(!thRow || !tbody) return;
+
+    // Header
+    thRow.innerHTML = PO_COLS.map(c => '<th>' + c.label + '</th>').join('');
+
+    // Filter rows
+    let rows = [];
+    poData.forEach(d => {
+      if(poActiveSheet === 'all' || d.sheetName.toLowerCase().indexOf(poActiveSheet) !== -1){
+        rows.push(...d.rows);
+      }
+    });
+    if(poStatusFilter){
+      rows = rows.filter(r => String(r.status||'').toLowerCase().indexOf(poStatusFilter.toLowerCase()) !== -1);
+    }
+    if(poSearch){
+      const q = poSearch.toLowerCase();
+      rows = rows.filter(r => PO_COLS.some(c => { const v = r[c.key]; return v != null && String(v).toLowerCase().indexOf(q) !== -1; }));
+    }
+
+    // Summary
+    const sumEl = document.getElementById('poRegSumRows');
+    if(sumEl) sumEl.textContent = rows.length + ' rows' + (poActiveSheet !== 'all' ? ' (' + poActiveSheet + ')' : '');
+
+    // Body (limit 500)
+    const slice = rows.slice(0, 500);
+    tbody.innerHTML = slice.map(r => {
+      return '<tr>' + PO_COLS.map(c => {
+        const v = r[c.key];
+        if(v == null) return '<td>-</td>';
+        // Status badge
+        if(c.key === 'status'){
+          const s = String(v);
+          if(s === 'Received') return '<td><span class="badge b-rec">'+s+'</span></td>';
+          if(s === 'In Transit') return '<td><span class="badge b-trans">'+s+'</span></td>';
+          if(s === 'On Hold') return '<td><span class="badge b-canc">'+s+'</span></td>';
+          return '<td><span class="badge b-na">'+s+'</span></td>';
+        }
+        return '<td>' + String(v) + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+
+    // Hint
+    const hint = document.getElementById('poRegHint');
+    if(hint) hint.textContent = poData.length ? rows.length + ' of ' + poData.reduce((s,d)=>s+d.rows.length,0) + ' total' : 'Upload Purchase Order Register.xlsx';
+  }
+
+  // Upload handler
+  const fileInput = document.getElementById('poRegFileInput');
+  const uploadBtn = document.getElementById('poRegUploadBtn');
+  if(uploadBtn && fileInput){
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      fileInput.value = '';
+      if(!file) return;
+      if(typeof XLSX === 'undefined'){ toast('XLSX library not loaded.', 'error'); return; }
+      toast('Reading PO Register...', 'info', 2000);
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, {type:'array'});
+      poData = [];
+      const targetSheets = ['26-27','25-26','Longi (25-26)','24-25','23-24','22-23'];
+      for(const sn of wb.SheetNames){
+        if(sn === 'List') continue; // skip the dropdown list sheet
+        const rows = parsePOSheet(wb, sn);
+        if(rows.length) poData.push({ sheetName: sn, rows });
+      }
+      toast('PO Register loaded: ' + poData.reduce((s,d)=>s+d.rows.length,0) + ' rows from ' + poData.length + ' sheets', 'success', 4000);
+      // Save to localStorage
+      try{ localStorage.setItem('mis_po_register', JSON.stringify(poData)); }catch(e){}
+      renderPOTable();
+    });
+  }
+
+  // Sub-tab switching
+  const tabs = document.getElementById('poRegTabs');
+  if(tabs){
+    tabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('.rec-tab');
+      if(!btn) return;
+      tabs.querySelectorAll('.rec-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      poActiveSheet = btn.dataset.poregSheet;
+      renderPOTable();
+    });
+  }
+
+  // Search + status filter
+  const searchEl = document.getElementById('poRegSearch');
+  const statusEl = document.getElementById('poRegStatus');
+  if(searchEl) searchEl.addEventListener('input', (e) => { poSearch = e.target.value; renderPOTable(); });
+  if(statusEl) statusEl.addEventListener('change', (e) => { poStatusFilter = e.target.value; renderPOTable(); });
+
+  // Load from localStorage on init
+  try{
+    const saved = localStorage.getItem('mis_po_register');
+    if(saved){ poData = JSON.parse(saved); renderPOTable(); }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
