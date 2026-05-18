@@ -1104,6 +1104,15 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     </div>
   </div>
 
+  <!-- TABS (always visible, outside dashContent) -->
+  <div class="tabs" id="mainTabs">
+    <button class="tab-btn active" data-tab="filters">🔍 Filters & Settings</button>
+    <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
+    <button class="tab-btn" data-tab="table">📋 Records</button>
+    <button class="tab-btn" data-tab="poregister">📦 PO Register</button>
+    <button class="tab-btn" data-tab="payments">💰 Payments</button>
+  </div>
+
   <!-- DASHBOARD CONTENT -->
   <div id="dashContent">
 
@@ -1117,15 +1126,6 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
       <button id="fxBannerInr">INR only</button>
       <button id="fxBannerDismiss" title="Dismiss">✕</button>
     </span>
-  </div>
-
-  <!-- TABS (outside dashContent so PO Register tab is always visible) -->
-  <div class="tabs" id="mainTabs">
-    <button class="tab-btn active" data-tab="filters">🔍 Filters & Settings</button>
-    <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
-    <button class="tab-btn" data-tab="table">📋 Records</button>
-    <button class="tab-btn" data-tab="poregister">📦 PO Register</button>
-    <button class="tab-btn" data-tab="payments">💰 Payments</button>
   </div>
 
   <!-- TAB: FILTERS & SETTINGS -->
