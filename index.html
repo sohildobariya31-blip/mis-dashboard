@@ -2165,9 +2165,10 @@ window._dashboardReload = function(parsed){
   if(!state.from && !state.to) initDates();
   document.getElementById('dashContent').style.display = '';
   document.getElementById('emptyState').style.display = 'none';
-  render();
+  try { render(); } catch(e) { console.error('render() error:', e); }
   if(typeof refreshFxTab === 'function') refreshFxTab();
-  try{ localStorage.setItem('mis_dashboard_data', JSON.stringify({rows: parsed.rows, meta: parsed.meta})); }catch(e){}
+  // Defer localStorage save to avoid blocking the main thread
+  setTimeout(function(){ try{ localStorage.setItem('mis_dashboard_data', JSON.stringify({rows: parsed.rows, meta: parsed.meta})); }catch(e){} }, 1000);
   const dashTab = document.querySelector('.tab-btn[data-tab="dashboard"]');
   if(dashTab) dashTab.click();
 };
