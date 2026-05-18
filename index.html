@@ -884,6 +884,55 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 }
 .card:hover .chart-dl{opacity:1}
 .chart-dl:hover{color:var(--text);background:var(--card2)}
+
+/* Payments summary bar */
+.pay-summary-bar {
+  padding: 8px 14px;
+  margin: 6px 0;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--bg2) 90%, transparent),
+    color-mix(in srgb, var(--card) 90%, transparent));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pay-summary-bar .pay-sum-label { font-weight: 700; color: var(--text); }
+#paySumPayable { color: var(--accent); font-weight: 600; }
+#paySumPaid { color: var(--good); font-weight: 600; }
+#paySumOutstanding { color: var(--warn); font-weight: 600; }
+
+/* Payment status badges */
+.badge { 
+  display: inline-block; 
+  padding: 2px 8px; 
+  border-radius: 999px; 
+  font-size: 11px; 
+  font-weight: 600; 
+  text-transform: uppercase; 
+  letter-spacing: 0.3px; 
+}
+.badge-paid { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
+.badge-pending { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+.badge-overdue { background: color-mix(in srgb, var(--bad) 20%, transparent); color: var(--bad); }
+
+/* Payments table header sort indicators */
+#payTbl th { cursor: pointer; user-select: none; white-space: nowrap; }
+#payTbl th .sort-arrow { margin-left: 4px; opacity: 0.6; }
+#payTbl th.sorted .sort-arrow { opacity: 1; }
+
+/* Payments tab responsive */
+#tab-payments .table-scroll{overflow-x:auto;max-width:100%}
+#tab-payments{overflow:hidden}
+#payTbl td,#payTbl th{font-size:12px;min-width:60px}
+
+@media (max-width:599px){
+  #payTabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  #payTabs .rec-tab{flex-shrink:0}
+}
 </style>
 </head>
 <body>
@@ -1078,6 +1127,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
     <button class="tab-btn" data-tab="table">📋 Records</button>
     <button class="tab-btn" data-tab="poregister">📦 PO Register</button>
+    <button class="tab-btn" data-tab="payments">💰 Payments</button>
   </div>
 
   <!-- TAB: FILTERS & SETTINGS -->
@@ -1143,6 +1193,13 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
           <option value="other2526">Other material 25-26 only</option>
         </select>
       </div>
+      <div>
+        <label>Dashboard Mode</label>
+        <select id="dashMode">
+          <option value="full" selected>Full Records</option>
+          <option value="payment">Payment View</option>
+        </select>
+      </div>
     </div>
 
     <div class="section-h" style="margin-top:14px"><h2>Category & Dimension Filters</h2><div class="line"></div></div>
@@ -1186,7 +1243,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 
   <!-- PO Status KPIs -->
-  <div class="kpis" style="margin-top:-4px">
+  <div class="kpis" id="kpisStatus" style="margin-top:-4px">
     <div class="kpi animate d1" style="border-left:3px solid var(--accent)"><div class="label">PO Total</div><div class="value" id="kpiPOTotal">-</div><div class="sub" id="kpiPOTotalSub">all POs</div></div>
     <div class="kpi animate d2" style="border-left:3px solid var(--good)"><div class="label">Received</div><div class="value" id="kpiRecVal">-</div><div class="sub" id="kpiRecValSub">received qty value</div></div>
     <div class="kpi animate d3" style="border-left:3px solid var(--warn)"><div class="label">Pending</div><div class="value" id="kpiPendVal">-</div><div class="sub" id="kpiPendValSub">not yet received</div></div>
@@ -1713,6 +1770,51 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
   </div><!-- /tab-poregister -->
 
+  <!-- TAB: PAYMENTS -->
+  <div class="tab-panel" id="tab-payments">
+    <div class="section-h"><h2>💰 Payments</h2><div class="line"></div></div>
+    <div class="card animate">
+      <h3>
+        Payment Records <span class="hint" id="payHint"></span>
+        <span style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn" id="payExportBtn">📤 Export Excel</button>
+        </span>
+      </h3>
+
+      <!-- Sub-tabs -->
+      <div class="rec-tabs" id="payTabs">
+        <button class="rec-tab active" data-pay-sheet="all">All</button>
+        <button class="rec-tab" data-pay-sheet="bom2627">BOM 26-27</button>
+        <button class="rec-tab" data-pay-sheet="bom2526">BOM 25-26</button>
+        <button class="rec-tab" data-pay-sheet="other2627">Other 26-27</button>
+        <button class="rec-tab" data-pay-sheet="other2526">Other 25-26</button>
+      </div>
+
+      <!-- Toolbar: search + count -->
+      <div class="table-toolbar">
+        <input id="paySearch" placeholder="Search payments..." maxlength="100"/>
+        <span class="count" id="payCount"></span>
+      </div>
+
+      <!-- Summary bar -->
+      <div id="paySummary" class="pay-summary-bar">
+        <span class="pay-sum-label">📊 Summary</span>
+        <span id="paySumPayable">Payable: ₹0</span>
+        <span id="paySumPaid">Paid: ₹0</span>
+        <span id="paySumOutstanding">Outstanding: ₹0</span>
+        <span id="paySumRows">0 rows</span>
+      </div>
+
+      <!-- Table -->
+      <div class="table-scroll">
+        <table id="payTbl">
+          <thead><tr id="payThRow"></tr></thead>
+          <tbody id="payTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /tab-payments -->
+
 </div><!-- /.container -->
 
 <!-- Column picker drawer -->
@@ -2212,7 +2314,484 @@ const state = {
     },
     dismissed:false,
   },
+  // Payments tab state
+  paySheet:'all',        // Payments sub-tab: 'all', 'bom2627', 'bom2526', 'other2627', 'other2526'
+  paySortKey:'poDate',   // Current sort column key
+  paySortDir:'desc',     // 'asc' or 'desc'
+  paySearch:'',          // Search term for payments table
+  dashMode:'full',       // 'full' or 'payment'
 };
+
+// Payments table column definitions (21 data columns + 3 calculated)
+const PAY_COLUMNS = [
+  { key: 'poNo',          label: 'PO no',          type: 'text' },
+  { key: 'poDate',        label: 'PO Date',        type: 'date' },
+  { key: 'supplier',      label: 'Supplier',       type: 'text' },
+  { key: 'itemCode',      label: 'Item',           type: 'text' },
+  { key: 'description',   label: 'Variant',        type: 'text' },
+  { key: 'qty',           label: 'Qty',            type: 'num' },
+  { key: 'uom',           label: 'UOM',            type: 'text' },
+  { key: 'currency',      label: 'Currency',       type: 'text' },
+  { key: 'basicRate',     label: 'Basic Rate',     type: 'money' },
+  { key: 'amount',        label: 'Amount',         type: 'money' },
+  { key: 'freight',       label: 'Freight',        type: 'money' },
+  { key: 'gstPercent',    label: 'GST%',           type: 'num' },
+  { key: 'totalAmount',   label: 'Total',          type: 'money' },
+  { key: 'payable',       label: 'Payable',        type: 'money' },
+  { key: 'debit',         label: 'Debit',          type: 'money' },
+  { key: 'creditDays',    label: 'Credit Days',    type: 'num' },
+  { key: 'dueDate',       label: 'Due Date',       type: 'date' },
+  { key: 'paymentStatus', label: 'Payment Status', type: 'badge' },
+  { key: 'paid',          label: 'Paid',           type: 'money' },
+  { key: 'outstanding',   label: 'Outstanding',    type: 'money' },
+  { key: '_inrPerWp',     label: '₹/Wp',           type: 'calc' },
+  { key: '_costPerSetINR',label: '₹/Set',          type: 'calc' },
+  { key: '_glassRatePerPc',label:'₹/piece',        type: 'calc' },
+];
+
+// Payments sub-tab sheet filter: same logic as Records sub-tab
+function paySheetFilter(rows) {
+  if (state.paySheet === 'all') return rows;
+  return rows.filter(r => {
+    const sheet = (r._sheet || '').toLowerCase();
+    const source = (r._source || '').toLowerCase();
+    const combined = sheet + ' ' + source;
+    switch (state.paySheet) {
+      case 'bom2627': return sheet.indexOf('bom') !== -1 && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
+      case 'bom2526': return sheet.indexOf('bom') !== -1 && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
+      case 'other2627': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
+      case 'other2526': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
+      default: return true;
+    }
+  });
+}
+
+// Payments search filter: case-insensitive substring match across all visible columns
+function paySearchFilter(rows) {
+  const term = state.paySearch.trim().toLowerCase();
+  if (!term) return rows;
+  return rows.filter(r =>
+    PAY_COLUMNS.some(col => {
+      const val = String(r[col.key] || '').toLowerCase();
+      return val.includes(term);
+    })
+  );
+}
+
+// Payments calculated columns: reads pre-computed derived fields from computeDerivedFields()
+// Returns { perWp, perSet, perPiece } with formatted values or '—' (U+2014) for non-matching/insufficient data
+function payCalcColumns(row) {
+  const EM = '\u2014'; // em dash for non-applicable/insufficient data
+  return {
+    perWp: (row._inrPerWp != null && row._inrPerWp !== '' && Number(row._inrPerWp) > 0)
+      ? Number(row._inrPerWp).toFixed(4) : EM,
+    perSet: (row._costPerSetINR != null && row._costPerSetINR !== '' && Number(row._costPerSetINR) > 0)
+      ? Number(row._costPerSetINR).toFixed(2) : EM,
+    perPiece: (row._glassRatePerPc != null && row._glassRatePerPc !== '' && Number(row._glassRatePerPc) > 0)
+      ? Number(row._glassRatePerPc).toFixed(2) : EM,
+  };
+}
+
+// Payments sort: sorts rows by state.paySortKey and state.paySortDir
+function paySort(rows) {
+  const key = state.paySortKey;
+  const dir = state.paySortDir === 'asc' ? 1 : -1;
+  const col = PAY_COLUMNS.find(c => c.key === key);
+  if (!col) return rows;
+
+  return [...rows].sort((a, b) => {
+    let va = a[key], vb = b[key];
+
+    // Nulls last regardless of direction
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+
+    let cmp = 0;
+    if (col.type === 'text') {
+      cmp = String(va).localeCompare(String(vb));
+    } else if (col.type === 'date') {
+      cmp = String(va).localeCompare(String(vb));
+    } else if (col.type === 'num' || col.type === 'money' || col.type === 'calc') {
+      cmp = (Number(va) || 0) - (Number(vb) || 0);
+    } else if (col.type === 'badge') {
+      const priority = s => {
+        const os = Number(s.outstanding) || 0;
+        const st = (s.paymentStatus || '').toLowerCase();
+        if (st === 'paid' || os <= 0) return 3;
+        if (os > 0 && s.dueDate && new Date(s.dueDate + 'T00:00:00') < new Date(new Date().toDateString())) return 1;
+        return 2;
+      };
+      cmp = priority(a) - priority(b);
+    }
+
+    return cmp * dir;
+  });
+}
+
+// Main render function for Payments tab
+function renderPayments() {
+  const thRow = document.getElementById('payThRow');
+  const tbody = document.getElementById('payTbody');
+  const countEl = document.getElementById('payCount');
+
+  // Handle empty RAW state
+  if (!RAW || !RAW.length) {
+    tbody.innerHTML = '<tr><td colspan="' + PAY_COLUMNS.length + '" style="text-align:center;padding:20px;color:var(--muted)">No data loaded</td></tr>';
+    thRow.innerHTML = '';
+    countEl.textContent = '0 of 0';
+    if (typeof updatePaySummary === 'function') updatePaySummary([]);
+    return;
+  }
+
+  // Apply filter pipeline
+  const filtered = applyFilters(RAW);
+  const sheetRows = paySheetFilter(filtered);
+  const searchRows = paySearchFilter(sheetRows);
+  const sorted = paySort(searchRows);
+
+  // Render headers with sort arrows
+  thRow.innerHTML = PAY_COLUMNS.map(function(col) {
+    const isSorted = state.paySortKey === col.key;
+    const arrow = isSorted ? (state.paySortDir === 'asc' ? '\u25B2' : '\u25BC') : '';
+    return '<th class="' + (isSorted ? 'sorted' : '') + '" data-pay-sort="' + col.key + '">' + col.label + '<span class="sort-arrow">' + arrow + '</span></th>';
+  }).join('');
+
+  // Render body rows
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="' + PAY_COLUMNS.length + '" style="text-align:center;padding:20px;color:var(--muted)">No records match current filters</td></tr>';
+  } else {
+    const fxOn = state.fx && state.fx.convert;
+    tbody.innerHTML = sorted.map(function(r) {
+      const calc = payCalcColumns(r);
+      return '<tr>' + PAY_COLUMNS.map(function(col) {
+        var val = '';
+        if (col.type === 'badge') {
+          val = payBadge(r);
+        } else if (col.type === 'calc') {
+          if (col.key === '_inrPerWp') val = calc.perWp;
+          else if (col.key === '_costPerSetINR') val = calc.perSet;
+          else val = calc.perPiece;
+        } else if (col.type === 'money') {
+          var raw = Number(r[col.key]) || 0;
+          if (fxOn) {
+            var cur = normalizeCurrency(r.currency, r);
+            if (cur !== 'INR') {
+              var fxDate = r.poDate || r.invoiceDate;
+              var rate = lookupRate(cur, fxDate);
+              if (rate && rate > 0) raw = raw * rate;
+            }
+          }
+          val = fmtAmount(raw);
+        } else if (col.type === 'date') {
+          val = r[col.key] || '\u2014';
+        } else if (col.type === 'num') {
+          val = r[col.key] != null ? r[col.key] : '\u2014';
+        } else {
+          val = r[col.key] || '';
+        }
+        return '<td>' + val + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+  }
+
+  // Update row count indicator
+  countEl.textContent = sorted.length + ' of ' + sheetRows.length;
+
+  // Update summary bar with sheet-filtered rows (before search)
+  if (typeof updatePaySummary === 'function') updatePaySummary(sheetRows);
+}
+
+// Summary bar: compute totals for visible rows with FX conversion
+function updatePaySummary(rows) {
+  const fxOn = state.fx && state.fx.convert;
+  let totalPayable = 0, totalPaid = 0, totalOutstanding = 0;
+
+  rows.forEach(r => {
+    let rate = 1;
+    if (fxOn) {
+      const cur = normalizeCurrency(r.currency, r);
+      if (cur !== 'INR') {
+        const fxDate = r.poDate || r.invoiceDate;
+        const lr = lookupRate(cur, fxDate);
+        if (lr && lr > 0) rate = lr;
+      }
+    }
+    totalPayable += (Number(r.payable) || 0) * rate;
+    totalPaid += (Number(r.paid) || 0) * rate;
+    totalOutstanding += (Number(r.outstanding) || 0) * rate;
+  });
+
+  document.getElementById('paySumPayable').textContent = 'Payable: ' + fmtAmount(totalPayable);
+  document.getElementById('paySumPaid').textContent = 'Paid: ' + fmtAmount(totalPaid);
+  document.getElementById('paySumOutstanding').textContent = 'Outstanding: ' + fmtAmount(totalOutstanding);
+  document.getElementById('paySumRows').textContent = rows.length + ' rows';
+}
+
+// Excel export for Payments tab
+function payExportExcel() {
+  // Check XLSX library availability
+  if (typeof XLSX === 'undefined') {
+    toast('Excel library not loaded. Check internet and refresh.', 'error');
+    return;
+  }
+
+  // Get current visible rows (same pipeline as renderPayments)
+  const filtered = applyFilters(RAW || []);
+  const sheetRows = paySheetFilter(filtered);
+  const searchRows = paySearchFilter(sheetRows);
+  const sorted = paySort(searchRows);
+
+  // Build header row
+  const headers = PAY_COLUMNS.map(function(c) { return c.label; });
+
+  // Build data rows
+  const fxOn = state.fx && state.fx.convert;
+  const data = sorted.map(function(r) {
+    const calc = payCalcColumns(r);
+    return PAY_COLUMNS.map(function(col) {
+      if (col.type === 'badge') {
+        // Export badge as text status
+        var os = Number(r.outstanding) || 0;
+        var st = (r.paymentStatus || '').toLowerCase();
+        if (st === 'paid' || os <= 0) return 'Paid';
+        if (os > 0 && r.dueDate && new Date(r.dueDate + 'T00:00:00') < new Date(new Date().toDateString())) return 'Overdue';
+        return 'Pending';
+      }
+      if (col.type === 'calc') {
+        if (col.key === '_inrPerWp') return calc.perWp === '\u2014' ? '' : Number(calc.perWp);
+        if (col.key === '_costPerSetINR') return calc.perSet === '\u2014' ? '' : Number(calc.perSet);
+        return calc.perPiece === '\u2014' ? '' : Number(calc.perPiece);
+      }
+      if (col.type === 'money') {
+        var raw = Number(r[col.key]) || 0;
+        if (fxOn) {
+          var cur = normalizeCurrency(r.currency, r);
+          if (cur !== 'INR') {
+            var lr = lookupRate(cur, r.poDate || r.invoiceDate);
+            if (lr && lr > 0) raw = raw * lr;
+          }
+        }
+        return raw; // Numeric, not formatted string
+      }
+      if (col.type === 'num') return r[col.key] != null ? (Number(r[col.key]) || r[col.key]) : '';
+      return r[col.key] || '';
+    });
+  });
+
+  // Create worksheet (header-only file if zero rows)
+  var aoa = [headers].concat(data);
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Payments');
+
+  // Generate filename with timestamp: payments_YYYY-MM-DD-HH-mm-ss.xlsx
+  var now = new Date();
+  var ts = now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0') + '-' +
+    String(now.getHours()).padStart(2, '0') + '-' +
+    String(now.getMinutes()).padStart(2, '0') + '-' +
+    String(now.getSeconds()).padStart(2, '0');
+
+  XLSX.writeFile(wb, 'payments_' + ts + '.xlsx');
+}
+
+// Render payment-focused KPIs when dashMode === 'payment'
+function renderPaymentKPIs(filtered) {
+  const fxOn = state.fx && state.fx.convert;
+  let totalPayable = 0, totalPaid = 0, totalOutstanding = 0, overdueAmt = 0;
+  let creditDaysSum = 0, creditDaysCount = 0;
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  filtered.forEach(r => {
+    let rate = 1;
+    if (fxOn) {
+      const cur = normalizeCurrency(r.currency, r);
+      if (cur !== 'INR') {
+        const lr = lookupRate(cur, r.poDate || r.invoiceDate);
+        if (lr && lr > 0) rate = lr;
+      }
+    }
+    totalPayable += (Number(r.payable) || 0) * rate;
+    totalPaid += (Number(r.paid) || 0) * rate;
+    totalOutstanding += (Number(r.outstanding) || 0) * rate;
+
+    // Exclude rows with no dueDate from Overdue and Avg Credit Days
+    if (r.dueDate) {
+      const due = new Date(r.dueDate + 'T00:00:00');
+      if (due < today) {
+        overdueAmt += (Number(r.outstanding) || 0) * rate;
+      }
+      if (r.poDate) {
+        const po = new Date(r.poDate + 'T00:00:00');
+        const days = Math.round((due - po) / 86400000);
+        if (days >= 0) { creditDaysSum += days; creditDaysCount++; }
+      }
+    }
+  });
+
+  const avgCreditDays = creditDaysCount > 0 ? Math.round(creditDaysSum / creditDaysCount) : 0;
+
+  // Render into the existing KPI grid
+  const grid = document.getElementById('kpis');
+  if (!grid) return;
+  grid.innerHTML = `
+    <div class="kpi animate d1"><div class="label">Total Payable</div><div class="value">${fmtAmount(totalPayable)}</div><div class="sub">all filtered records</div></div>
+    <div class="kpi animate d2" style="border-left:3px solid var(--good)"><div class="label">Total Paid</div><div class="value" style="color:var(--good)">${fmtAmount(totalPaid)}</div><div class="sub">payment received</div></div>
+    <div class="kpi animate d3" style="border-left:3px solid var(--warn)"><div class="label">Total Outstanding</div><div class="value" style="color:var(--warn)">${fmtAmount(totalOutstanding)}</div><div class="sub">payable - paid</div></div>
+    <div class="kpi animate d4" style="border-left:3px solid var(--bad)"><div class="label">Overdue Amount</div><div class="value" style="color:var(--bad)">${fmtAmount(overdueAmt)}</div><div class="sub">past due date</div></div>
+    <div class="kpi animate d5"><div class="label">Avg Credit Days</div><div class="value">${avgCreditDays} days</div><div class="sub">${creditDaysCount} records with dates</div></div>
+  `;
+
+  // Hide the PO Status KPIs row in payment mode
+  const statusRow = document.getElementById('kpisStatus');
+  if (statusRow) statusRow.style.display = 'none';
+}
+
+// Render payment-focused trend chart: Payable vs Paid vs Outstanding over time
+function renderPaymentTrend(filtered) {
+  const gran = state.granularity;
+  const hintEl = document.getElementById('trendHint');
+
+  // Show loading indicator for large datasets (10,000+ rows)
+  if (filtered.length >= 10000 && hintEl) {
+    hintEl.textContent = '⏳ Rendering payment trend…';
+  }
+
+  const buckets = new Map();
+  const fxOn = state.fx && state.fx.convert;
+
+  for (const r of filtered) {
+    const k = bucketKey(r[state.dateBasis], gran);
+    if (!k) continue;
+    if (!buckets.has(k)) buckets.set(k, { payable: 0, paid: 0, outstanding: 0 });
+    const b = buckets.get(k);
+    let rate = 1;
+    if (fxOn) {
+      const cur = normalizeCurrency(r.currency, r);
+      if (cur !== 'INR') {
+        const lr = lookupRate(cur, r.poDate || r.invoiceDate);
+        if (lr && lr > 0) rate = lr;
+      }
+    }
+    b.payable += (Number(r.payable) || 0) * rate;
+    b.paid += (Number(r.paid) || 0) * rate;
+    b.outstanding += (Number(r.outstanding) || 0) * rate;
+  }
+
+  const labels = [...buckets.keys()].sort();
+  const dataPayable = labels.map(k => buckets.get(k).payable);
+  const dataPaid = labels.map(k => buckets.get(k).paid);
+  const dataOutstanding = labels.map(k => buckets.get(k).outstanding);
+
+  // Check if chart needs update
+  if (!chartNeedsUpdate('chTrend', [labels, 'paymentTrend'], [dataPayable, dataPaid, dataOutstanding])) return;
+  destroyChart('chTrend');
+
+  // Colors: Payable = blue (PALETTE[0]), Paid = green, Outstanding = amber
+  const colorPayable = PALETTE[0];
+  const colorPaid = getCSSVar('--good') || '#22c55e';
+  const colorOutstanding = getCSSVar('--warn') || '#f59e0b';
+
+  charts['chTrend'] = new Chart(document.getElementById('chTrend'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Payable',
+          data: dataPayable,
+          borderColor: colorPayable,
+          backgroundColor: colorPayable + '22',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2
+        },
+        {
+          label: 'Paid',
+          data: dataPaid,
+          borderColor: colorPaid,
+          backgroundColor: colorPaid + '22',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2
+        },
+        {
+          label: 'Outstanding',
+          data: dataOutstanding,
+          borderColor: colorOutstanding,
+          backgroundColor: colorOutstanding + '22',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300, easing: 'easeOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { grid: { color: getCSSVar('--border') }, ticks: { color: getCSSVar('--text') } },
+        y: {
+          grid: { color: getCSSVar('--border') },
+          ticks: { color: getCSSVar('--text'), callback: v => fmtAmount(v) },
+          title: { display: true, text: 'Amount', color: getCSSVar('--text') }
+        }
+      },
+      plugins: {
+        legend: { labels: { boxWidth: 10, color: getCSSVar('--text') } },
+        tooltip: {
+          callbacks: {
+            label: c => ` ${c.dataset.label}: ${fmtAmount(c.parsed.y)}`
+          }
+        },
+        datalabels: { display: false }
+      }
+    }
+  });
+
+  document.getElementById('trendHint').textContent = `Payment View - ${gran} - ${labels.length} periods`;
+}
+
+// Payments search input with 150ms debounce
+(function() {
+  let paySearchTimer = null;
+  document.getElementById('paySearch').addEventListener('input', function(e) {
+    clearTimeout(paySearchTimer);
+    paySearchTimer = setTimeout(function() {
+      state.paySearch = e.target.value;
+      renderPayments();
+    }, 150);
+  });
+})();
+
+// Payments table header sort click (event delegation)
+document.getElementById('payThRow').addEventListener('click', function(e) {
+  const th = e.target.closest('th');
+  if (!th) return;
+  const key = th.dataset.paySort;
+  if (!key) return;
+
+  if (state.paySortKey === key) {
+    state.paySortDir = state.paySortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.paySortKey = key;
+    state.paySortDir = 'asc';
+  }
+  renderPayments();
+});
+
+// Export Excel button click handler
+document.getElementById('payExportBtn').addEventListener('click', payExportExcel);
 
 // Defensive: ensure FX defaults are always present (in case anyone clears them)
 const _DEFAULT_FX = {
@@ -2507,6 +3086,7 @@ function readTopFilters(){
   state.kpiMetric  = document.getElementById('kpiMetric').value;
   state.paymentMetric = document.getElementById('paymentMetric').value;
   state.sheetFilter = document.getElementById('sheetFilter').value;
+  state.dashMode = document.getElementById('dashMode').value;
   state.from = document.getElementById('fromDate').value || null;
   state.to   = document.getElementById('toDate').value   || null;
   state.search = document.getElementById('tblSearch').value.toLowerCase().trim();
@@ -3295,10 +3875,27 @@ function statusBadge(s){
   if(s === 'Cancelled')  return `<span class="badge b-canc">${s}</span>`;
   return `<span class="badge b-na">${s}</span>`;
 }
-function payBadge(s){
-  if(!s) return `<span class="badge b-na">Unpaid</span>`;
-  if(s === 'Approved') return `<span class="badge b-app">${s}</span>`;
-  return `<span class="badge b-na">${s}</span>`;
+function payBadge(row) {
+  const outstanding = Number(row.outstanding) || 0;
+  const status = (row.paymentStatus || '').toLowerCase().trim();
+
+  // 1. Paid: status is "paid" OR outstanding is zero/negative
+  if (status === 'paid' || outstanding <= 0) {
+    return '<span class="badge badge-paid">Paid</span>';
+  }
+
+  // 2. Overdue: outstanding > 0 AND dueDate is before today
+  if (outstanding > 0 && row.dueDate) {
+    const due = new Date(row.dueDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (due < today) {
+      return '<span class="badge badge-overdue">Overdue</span>';
+    }
+  }
+
+  // 3. Pending: default
+  return '<span class="badge badge-pending">Pending</span>';
 }
 // Monetary fields that should show currency symbol (all _ prefixed = INR converted)
 const MONETARY_KEYS = new Set([
@@ -3332,7 +3929,7 @@ function cellValue(r, key){
   if(c.type === 'pct')  return (Number(v)*100).toFixed(1) + '%';
   if(c.type === 'date') return fmtDate(v);
   if(c.type === 'badge') return statusBadge(v);
-  if(c.type === 'paybadge') return payBadge(v);
+  if(c.type === 'paybadge') return payBadge(r);
   return String(v);
 }
 function renderHeader(){
@@ -3453,65 +4050,89 @@ function render(){
   if(typeof computeDerivedFields === 'function') computeDerivedFields(RAW);
   const filtered = applyChartFilters(RAW);
 
-  // KPIs — use selected amount type
-  const fnMain    = metricValueFn(state.kpiMetric);  // user-selected (payable or amount)
-  const fnPayment = metricValueFn(state.paymentMetric); // for outstanding/paid/pending
-  const fnOut     = metricValueFn('outstanding');
-  const fnPaid    = metricValueFn('paid');
-  const sumMain    = filtered.reduce((s,r)=>s+fnMain(r),0);
-  const sumOut     = filtered.reduce((s,r)=>s+fnOut(r),0);
-  const sumPaid    = filtered.reduce((s,r)=>s+fnPaid(r),0);
-  const sumQty     = filtered.reduce((s,r)=>s+(r.qty||0),0);
-  const uniqPO     = new Set(filtered.map(r=>r.poNo)).size;
-  const uniqVendors= new Set(filtered.map(r=>r.supplier)).size;
-  const uniqItems  = new Set(filtered.map(r=>r.itemCode)).size;
-  const mainLabel  = state.kpiMetric === 'amount' ? 'excl. GST' : (state.kpiMetric === 'payable' ? 'incl. GST' : 'total');
-  const payLabel   = state.paymentMetric === 'amount' ? 'excl. GST' : 'incl. GST';
-  animateNumber('kpiSpend', sumMain, fmtAmount);
-  document.getElementById('kpiSpendLabel').textContent = state.kpiMetric === 'amount' ? 'Total PO Value (excl. GST)' : 'Total PO Value (incl. GST)';
-  document.getElementById('kpiSpendSub').textContent = mainLabel;
-  animateNumber('kpiPO', uniqPO, n=>fmtNum(Math.round(n)));
-  document.getElementById('kpiPOSub').textContent = `${filtered.length} line items`;
-  animateNumber('kpiVendors', uniqVendors, n=>fmtNum(Math.round(n)));
-  animateNumber('kpiOut', sumOut, fmtAmount);
-  document.getElementById('kpiOutLabel').textContent = state.paymentMetric === 'amount' ? 'Outstanding (excl. GST)' : 'Outstanding (incl. GST)';
-  document.getElementById('kpiOutSub').textContent = `${payLabel} | ${sumMain ? ((sumOut/sumMain)*100).toFixed(1) + '%' : '-'}`;
-  document.getElementById('kpiItems').textContent = `${uniqItems} / ${fmtNum(Math.round(sumQty))}`;
-  document.getElementById('kpiItemsSub').textContent = 'items - total qty';
+  // KPIs — branch based on Dashboard Mode
+  if (state.dashMode === 'payment') {
+    renderPaymentKPIs(filtered);
+  } else {
+    // Restore original KPI structure if it was replaced by payment mode
+    const kpisEl = document.getElementById('kpis');
+    if (kpisEl && !document.getElementById('kpiSpend')) {
+      kpisEl.innerHTML = `
+        <div class="kpi animate d1"><div class="label" id="kpiSpendLabel">Total PO Value</div><div class="value" id="kpiSpend">-</div><div class="sub" id="kpiSpendSub">-</div></div>
+        <div class="kpi animate d2"><div class="label">Purchase orders</div><div class="value" id="kpiPO">-</div><div class="sub" id="kpiPOSub">unique POs</div></div>
+        <div class="kpi animate d3"><div class="label">Vendors</div><div class="value" id="kpiVendors">-</div><div class="sub">distinct suppliers</div></div>
+        <div class="kpi animate d4"><div class="label" id="kpiOutLabel">Outstanding</div><div class="value" id="kpiOut">-</div><div class="sub" id="kpiOutSub">unpaid amount</div></div>
+        <div class="kpi animate d5"><div class="label">Items / Qty</div><div class="value" id="kpiItems">-</div><div class="sub" id="kpiItemsSub">items - total qty</div></div>
+      `;
+    }
+    // Show PO Status KPIs row
+    const statusRow = document.getElementById('kpisStatus');
+    if (statusRow) statusRow.style.display = '';
 
-  // PO Status KPIs — use selected metrics
-  const recRows = filtered.filter(r=> r.status && r.status.toLowerCase() === 'received');
-  const pendRows = filtered.filter(r=> !r.status || r.status.toLowerCase() !== 'received');
-  const poTotal = sumMain;
-  const recVal = recRows.reduce((s,r)=>s+fnMain(r),0);
-  const pendVal = pendRows.reduce((s,r)=>s+fnMain(r),0);
-  const recQty = recRows.reduce((s,r)=>s+(r.qty||0),0);
-  const pendQty = pendRows.reduce((s,r)=>s+(r.qty||0),0);
-  // Paid/Unpaid use payment metric
-  const paidRows = filtered.filter(r=> {
-    const ps = (r.paymentStatus||'').toLowerCase();
-    return ps === 'paid' || ps === 'approved' || (r.outstanding != null && r.outstanding <= 0 && fnPayment(r) > 0);
-  });
-  const unpaidRows = filtered.filter(r=> {
-    const ps = (r.paymentStatus||'').toLowerCase();
-    return ps !== 'paid' && ps !== 'approved' && (r.outstanding == null || r.outstanding > 0);
-  });
-  const paidVal = paidRows.reduce((s,r)=>s+fnPayment(r),0);
-  const unpaidVal = unpaidRows.reduce((s,r)=>s+fnPayment(r),0);
+    // KPIs — use selected amount type
+    const fnMain    = metricValueFn(state.kpiMetric);  // user-selected (payable or amount)
+    const fnPayment = metricValueFn(state.paymentMetric); // for outstanding/paid/pending
+    const fnOut     = metricValueFn('outstanding');
+    const fnPaid    = metricValueFn('paid');
+    const sumMain    = filtered.reduce((s,r)=>s+fnMain(r),0);
+    const sumOut     = filtered.reduce((s,r)=>s+fnOut(r),0);
+    const sumPaid    = filtered.reduce((s,r)=>s+fnPaid(r),0);
+    const sumQty     = filtered.reduce((s,r)=>s+(r.qty||0),0);
+    const uniqPO     = new Set(filtered.map(r=>r.poNo)).size;
+    const uniqVendors= new Set(filtered.map(r=>r.supplier)).size;
+    const uniqItems  = new Set(filtered.map(r=>r.itemCode)).size;
+    const mainLabel  = state.kpiMetric === 'amount' ? 'excl. GST' : (state.kpiMetric === 'payable' ? 'incl. GST' : 'total');
+    const payLabel   = state.paymentMetric === 'amount' ? 'excl. GST' : 'incl. GST';
+    animateNumber('kpiSpend', sumMain, fmtAmount);
+    document.getElementById('kpiSpendLabel').textContent = state.kpiMetric === 'amount' ? 'Total PO Value (excl. GST)' : 'Total PO Value (incl. GST)';
+    document.getElementById('kpiSpendSub').textContent = mainLabel;
+    animateNumber('kpiPO', uniqPO, n=>fmtNum(Math.round(n)));
+    document.getElementById('kpiPOSub').textContent = `${filtered.length} line items`;
+    animateNumber('kpiVendors', uniqVendors, n=>fmtNum(Math.round(n)));
+    animateNumber('kpiOut', sumOut, fmtAmount);
+    document.getElementById('kpiOutLabel').textContent = state.paymentMetric === 'amount' ? 'Outstanding (excl. GST)' : 'Outstanding (incl. GST)';
+    document.getElementById('kpiOutSub').textContent = `${payLabel} | ${sumMain ? ((sumOut/sumMain)*100).toFixed(1) + '%' : '-'}`;
+    document.getElementById('kpiItems').textContent = `${uniqItems} / ${fmtNum(Math.round(sumQty))}`;
+    document.getElementById('kpiItemsSub').textContent = 'items - total qty';
 
-  animateNumber('kpiPOTotal', poTotal, fmtAmount);
-  document.getElementById('kpiPOTotalSub').textContent = `${filtered.length} items (${mainLabel})`;
-  animateNumber('kpiRecVal', recVal, fmtAmount);
-  document.getElementById('kpiRecValSub').textContent = `${recRows.length} items | qty ${fmtNum(Math.round(recQty))} (${mainLabel})`;
-  animateNumber('kpiPendVal', pendVal, fmtAmount);
-  document.getElementById('kpiPendValSub').textContent = `${pendRows.length} items | qty ${fmtNum(Math.round(pendQty))} (${mainLabel})`;
-  animateNumber('kpiPaidTotal', paidVal, fmtAmount);
-  document.getElementById('kpiPaidSub').textContent = `${paidRows.length} items (${payLabel})`;
-  animateNumber('kpiUnpaid', unpaidVal, fmtAmount);
-  document.getElementById('kpiUnpaidSub').textContent = `${unpaidRows.length} items (${payLabel})`;
+    // PO Status KPIs — use selected metrics
+    const recRows = filtered.filter(r=> r.status && r.status.toLowerCase() === 'received');
+    const pendRows = filtered.filter(r=> !r.status || r.status.toLowerCase() !== 'received');
+    const poTotal = sumMain;
+    const recVal = recRows.reduce((s,r)=>s+fnMain(r),0);
+    const pendVal = pendRows.reduce((s,r)=>s+fnMain(r),0);
+    const recQty = recRows.reduce((s,r)=>s+(r.qty||0),0);
+    const pendQty = pendRows.reduce((s,r)=>s+(r.qty||0),0);
+    // Paid/Unpaid use payment metric
+    const paidRows = filtered.filter(r=> {
+      const ps = (r.paymentStatus||'').toLowerCase();
+      return ps === 'paid' || ps === 'approved' || (r.outstanding != null && r.outstanding <= 0 && fnPayment(r) > 0);
+    });
+    const unpaidRows = filtered.filter(r=> {
+      const ps = (r.paymentStatus||'').toLowerCase();
+      return ps !== 'paid' && ps !== 'approved' && (r.outstanding == null || r.outstanding > 0);
+    });
+    const paidVal = paidRows.reduce((s,r)=>s+fnPayment(r),0);
+    const unpaidVal = unpaidRows.reduce((s,r)=>s+fnPayment(r),0);
 
-  // Trend
-  renderTrend(filtered);
+    animateNumber('kpiPOTotal', poTotal, fmtAmount);
+    document.getElementById('kpiPOTotalSub').textContent = `${filtered.length} items (${mainLabel})`;
+    animateNumber('kpiRecVal', recVal, fmtAmount);
+    document.getElementById('kpiRecValSub').textContent = `${recRows.length} items | qty ${fmtNum(Math.round(recQty))} (${mainLabel})`;
+    animateNumber('kpiPendVal', pendVal, fmtAmount);
+    document.getElementById('kpiPendValSub').textContent = `${pendRows.length} items | qty ${fmtNum(Math.round(pendQty))} (${mainLabel})`;
+    animateNumber('kpiPaidTotal', paidVal, fmtAmount);
+    document.getElementById('kpiPaidSub').textContent = `${paidRows.length} items (${payLabel})`;
+    animateNumber('kpiUnpaid', unpaidVal, fmtAmount);
+    document.getElementById('kpiUnpaidSub').textContent = `${unpaidRows.length} items (${payLabel})`;
+  }
+
+  // Trend — branch based on Dashboard Mode
+  if (state.dashMode === 'payment') {
+    renderPaymentTrend(filtered);
+  } else {
+    renderTrend(filtered);
+  }
 
   // Configurable cards
   renderConfigurableCard(filtered, 'card1', 'chCard1');
@@ -3529,13 +4150,17 @@ function render(){
 
   renderActivePills();
   renderTable();
+
+  // Update Payments tab data on every render pass (filter change, data refresh, etc.)
+  if(typeof renderPayments === 'function') renderPayments();
+
   window.__rendered = true;
 }
 
 /* =========================================================================
    Listeners
    ========================================================================= */
-['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ render(); setMetaText(); }));
+['dateBasis','granularity','fromDate','toDate','kpiMetric','paymentMetric','dashMode'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ render(); setMetaText(); }));
 document.getElementById('sheetFilter').addEventListener('change', ()=>{
   // 1. First sync the dropdown value into state
   state.sheetFilter = document.getElementById('sheetFilter').value;
@@ -4245,12 +4870,16 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
     const panel = document.getElementById('tab-'+tab);
     if(panel) panel.classList.add('active');
-    // PO Register is outside dashContent — show/hide dashContent accordingly
+    // PO Register and Payments are outside dashContent — show/hide dashContent accordingly
     const dc = document.getElementById('dashContent');
-    if(tab === 'poregister'){
+    if(tab === 'poregister' || tab === 'payments'){
       if(dc) dc.style.display = 'none';
     } else {
       if(dc && RAW && RAW.length > 0) dc.style.display = '';
+    }
+    // Render payments table when payments tab becomes active
+    if(tab === 'payments'){
+      if(typeof renderPayments === 'function') renderPayments();
     }
     // Trigger chart resize when switching to dashboard tab
     if(tab === 'dashboard'){
@@ -5140,6 +5769,23 @@ renderTableBody = function(){
     // For BOM tabs: the auto-show/hide in renderTableBody handles it based on item filter
 
     renderTableBody();
+  });
+})();
+
+// Payments sub-tab switching
+(function(){
+  const tabs = document.getElementById('payTabs');
+  if(!tabs) return;
+
+  tabs.addEventListener('click', function(e){
+    const btn = e.target.closest('.rec-tab');
+    if(!btn) return;
+    const sheet = btn.dataset.paySheet;
+    if(state.paySheet === sheet) return; // Skip if already active
+    state.paySheet = sheet;
+    tabs.querySelectorAll('.rec-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderPayments();
   });
 })();
 
