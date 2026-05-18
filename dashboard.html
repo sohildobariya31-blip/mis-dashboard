@@ -4051,6 +4051,8 @@ function render(){
   if(typeof computeDerivedFields === 'function') computeDerivedFields(RAW);
   const filtered = applyChartFilters(RAW);
 
+  // KPIs and charts — wrapped in try/catch so table always renders
+  try {
   // KPIs — branch based on Dashboard Mode
   if (state.dashMode === 'payment') {
     renderPaymentKPIs(filtered);
@@ -4148,6 +4150,7 @@ function render(){
   renderPoP();
   renderStack(filtered);
   renderPriceTrend(filtered);
+  } catch(e) { console.error('Dashboard render error:', e); }
 
   renderActivePills();
   renderTable();
