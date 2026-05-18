@@ -371,6 +371,71 @@ header .btn-row .btn.ghost{padding:7px 10px}
 .fgroup .opt.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--accent-text);border-color:transparent;font-weight:700;box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 30%, transparent)}
 .fgroup .opt.on:hover{filter:brightness(1.06)}
 
+/* Dropdown-style filter groups */
+.fgroup-dd{padding:10px 12px;gap:8px}
+.fgroup-dd .head{margin-bottom:4px}
+.fgroup-dd .head-text{display:flex;align-items:center;gap:8px}
+.fgroup-dd .head .clear{
+  width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;color:var(--bad);background:transparent;border:1px solid color-mix(in srgb, var(--bad) 30%, var(--border));
+  cursor:pointer;transition:all .15s ease;padding:0;line-height:1;
+}
+.fgroup-dd .head .clear:hover{background:color-mix(in srgb, var(--bad) 15%, transparent)}
+.fgroup-dd .head .clear:disabled{opacity:.3;cursor:default;background:transparent}
+.dd-trigger{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:9px 12px;border-radius:10px;
+  background:var(--bg2);border:1px solid var(--border);
+  color:var(--text);font-size:13px;font-weight:500;cursor:pointer;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.dd-trigger:hover{border-color:color-mix(in srgb, var(--accent) 50%, var(--border))}
+.fgroup-dd.open .dd-trigger{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent)}
+.dd-summary{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:left}
+.dd-summary.has-selection{color:var(--accent);font-weight:600}
+.dd-caret{color:var(--muted);font-size:11px;transition:transform .2s ease}
+.fgroup-dd.open .dd-caret{transform:rotate(180deg);color:var(--accent)}
+.dd-popover{
+  display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:50;
+  background:var(--card);border:1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.35);
+  padding:10px;max-height:320px;overflow:hidden;
+  display:flex;flex-direction:column;
+  animation:ddIn .2s cubic-bezier(.22,1,.36,1) both;
+}
+.fgroup-dd:not(.open) .dd-popover{display:none}
+.fgroup-dd.open .dd-popover{display:flex}
+@keyframes ddIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.dd-search{
+  width:100%;background:var(--bg2);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;
+  transition:border-color .15s ease;
+}
+.dd-search:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent)}
+.dd-quick{display:flex;gap:6px;margin-bottom:8px}
+.dd-mini{
+  padding:4px 8px;border-radius:6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;
+  background:var(--bg2);border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  transition:all .12s ease;
+}
+.dd-mini:hover{border-color:var(--accent);color:var(--text)}
+.dd-list{overflow:auto;flex:1;display:flex;flex-direction:column;gap:2px;padding-right:4px}
+.dd-list::-webkit-scrollbar{width:5px}
+.dd-list::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--accent) 30%, transparent);border-radius:3px}
+.dd-row{
+  display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;
+  cursor:pointer;font-size:12px;color:var(--text);transition:background .12s ease;
+  user-select:none;
+}
+.dd-row:hover{background:color-mix(in srgb, var(--accent) 8%, var(--bg2))}
+.dd-row.on{background:color-mix(in srgb, var(--accent) 12%, var(--bg2));font-weight:600}
+.dd-row input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex:none}
+.dd-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-empty{padding:16px;text-align:center;color:var(--muted);font-size:12px}
+
+/* Make fgroup-dd position relative for popover */
+.fgroup-dd{position:relative}
+
 /* Active pills */
 .active-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:10px;border-top:1px dashed color-mix(in srgb, var(--border) 70%, transparent)}
 .active-pills:empty{display:none}
@@ -1650,7 +1715,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.15</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.16</span></footer>
 
 
 <script>
@@ -2099,7 +2164,6 @@ function buildFilterGroups(){
   // Source rows: respect sheet filter so options only show items relevant to selected sheet(s)
   let sourceRows = RAW;
   try{
-    // NOTE: `state` is declared later as `const`. On the first call this throws (TDZ); catch handles it.
     if(state && state.sheetFilter && state.sheetFilter !== 'all'){
       sourceRows = RAW.filter(r=>{
         let sheet = (r._sheet || '').toLowerCase();
@@ -2121,55 +2185,146 @@ function buildFilterGroups(){
         }
       });
     }
-  }catch(e){ /* state not yet initialized on first call */ }
+  }catch(e){}
+
   FILTER_GROUPS.forEach(g=>{
-    const values = uniq(sourceRows.map(r=>r[g.key] ?? (g.missingLabel || null)));
+    const values = uniq(sourceRows.map(r => r[g.key] ?? (g.missingLabel || null)));
     const el = document.createElement('div');
-    el.className = 'fgroup'; el.dataset.key = g.key;
+    el.className = 'fgroup fgroup-dd'; el.dataset.key = g.key;
     el.innerHTML = `
       <div class="head">
-        <div><div class="title">${g.label}</div><div class="count" data-count></div></div>
-        <button class="clear" data-clear disabled>clear</button>
+        <div class="head-text"><div class="title">${g.label}</div><div class="count" data-count></div></div>
+        <button class="clear" data-clear disabled title="Clear selection">×</button>
       </div>
-      <input class="search" placeholder="Search ${g.label.toLowerCase()}..." data-search/>
-      <div class="options" data-opts></div>`;
+      <button class="dd-trigger" data-trigger type="button">
+        <span class="dd-summary" data-summary>All ${values.length}</span>
+        <span class="dd-caret">▾</span>
+      </button>
+      <div class="dd-popover" data-popover>
+        <input class="dd-search" placeholder="🔍 Search ${g.label.toLowerCase()}..." data-search/>
+        <div class="dd-quick">
+          <button type="button" class="dd-mini" data-pick="all">Select all</button>
+          <button type="button" class="dd-mini" data-pick="none">None</button>
+        </div>
+        <div class="dd-list" data-opts></div>
+      </div>`;
+
     const opts = el.querySelector('[data-opts]');
-    values.forEach(v=>{
-      const o = document.createElement('div');
-      o.className='opt'; o.textContent=v; o.dataset.value=v;
-      o.addEventListener('click', ()=>{
-        const set = state.filters[g.key];
-        if(set.has(v)) set.delete(v); else set.add(v);
-        o.classList.toggle('on'); updateGroupHeader(g.key);
-        // When item is selected/deselected, refresh variant options
-        if(g.key === 'itemCode') refreshVariantOptions();
-        render();
+    const popover = el.querySelector('[data-popover]');
+    const trigger = el.querySelector('[data-trigger]');
+    const search = el.querySelector('[data-search]');
+
+    function renderOpts(filter){
+      opts.innerHTML = '';
+      const set = state.filters[g.key];
+      const flt = (filter || '').toLowerCase();
+      values.forEach(v => {
+        const txt = String(v);
+        if(flt && txt.toLowerCase().indexOf(flt) === -1) return;
+        const row = document.createElement('label');
+        row.className = 'dd-row' + (set.has(v) ? ' on' : '');
+        row.innerHTML = '<input type="checkbox" '+(set.has(v)?'checked':'')+'><span>'+txt+'</span>';
+        const cb = row.querySelector('input');
+        cb.addEventListener('change', () => {
+          if(cb.checked) set.add(v); else set.delete(v);
+          row.classList.toggle('on', cb.checked);
+          updateGroupHeader(g.key);
+          if(g.key === 'itemCode') refreshVariantOptions();
+          render();
+        });
+        opts.appendChild(row);
       });
-      opts.appendChild(o);
+      if(!opts.children.length){
+        const empty = document.createElement('div');
+        empty.className = 'dd-empty';
+        empty.textContent = flt ? 'No matches' : 'No options';
+        opts.appendChild(empty);
+      }
+    }
+
+    renderOpts('');
+
+    // Toggle popover
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = el.classList.contains('open');
+      // Close all other dropdowns first
+      document.querySelectorAll('.fgroup-dd.open').forEach(o => o.classList.remove('open'));
+      if(!isOpen){
+        el.classList.add('open');
+        setTimeout(() => search && search.focus(), 50);
+      }
     });
-    el.querySelector('[data-search]').addEventListener('input', e=>{
-      const q = e.target.value.toLowerCase();
-      [...opts.children].forEach(c=>{ c.style.display = c.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-    });
-    el.querySelector('[data-clear]').addEventListener('click', ()=>{
-      state.filters[g.key].clear();
-      [...opts.children].forEach(c=>c.classList.remove('on'));
+    // Search
+    search.addEventListener('input', e => renderOpts(e.target.value));
+    search.addEventListener('click', e => e.stopPropagation());
+    popover.addEventListener('click', e => e.stopPropagation());
+
+    // Quick actions
+    el.querySelector('[data-pick="all"]').addEventListener('click', () => {
+      const set = state.filters[g.key];
+      values.forEach(v => set.add(v));
+      renderOpts(search.value);
       updateGroupHeader(g.key);
       if(g.key === 'itemCode') refreshVariantOptions();
       render();
     });
+    el.querySelector('[data-pick="none"]').addEventListener('click', () => {
+      state.filters[g.key].clear();
+      renderOpts(search.value);
+      updateGroupHeader(g.key);
+      if(g.key === 'itemCode') refreshVariantOptions();
+      render();
+    });
+
+    // Clear button (in head)
+    el.querySelector('[data-clear]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.filters[g.key].clear();
+      renderOpts(search.value);
+      updateGroupHeader(g.key);
+      if(g.key === 'itemCode') refreshVariantOptions();
+      render();
+    });
+
     fgroupsEl.appendChild(el);
     updateGroupHeader(g.key);
   });
+
+  // Click anywhere outside to close all dropdowns
+  if(!fgroupsEl._outsideHandlerBound){
+    fgroupsEl._outsideHandlerBound = true;
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.fgroup-dd.open').forEach(o => o.classList.remove('open'));
+    });
+  }
 }
 buildFilterGroups();
 function updateGroupHeader(key){
   const el = fgroupsEl.querySelector(`.fgroup[data-key="${key}"]`);
   if(!el) return;
   const set = state.filters[key];
-  const total = el.querySelectorAll('.opt').length;
-  el.querySelector('[data-count]').textContent = set.size ? `${set.size} of ${total} selected` : `${total} options`;
-  el.querySelector('[data-clear]').disabled = set.size === 0;
+  const sourceCount = el.querySelectorAll('.dd-row').length || el.querySelectorAll('.opt').length;
+  // Try to get total from a stable reference (data-source on root or count in stale)
+  const countEl = el.querySelector('[data-count]');
+  const summaryEl = el.querySelector('[data-summary]');
+  const clearEl = el.querySelector('[data-clear]');
+  if(set.size > 0){
+    if(countEl) countEl.textContent = set.size + ' selected';
+    if(summaryEl){
+      const items = [...set];
+      if(items.length === 1) summaryEl.textContent = String(items[0]).slice(0, 28);
+      else summaryEl.textContent = items.length + ' selected';
+      summaryEl.classList.add('has-selection');
+    }
+  } else {
+    if(countEl) countEl.textContent = sourceCount + ' options';
+    if(summaryEl){
+      summaryEl.textContent = 'All';
+      summaryEl.classList.remove('has-selection');
+    }
+  }
+  if(clearEl) clearEl.disabled = set.size === 0;
   el.classList.toggle('has-active', set.size > 0);
 }
 
@@ -2196,22 +2351,28 @@ function refreshVariantOptions(){
     if(!validSet.has(v)) state.filters['variant'].delete(v);
   }
 
-  // Rebuild variant chips
+  // Rebuild dropdown rows
   opts.innerHTML = '';
-  variants.forEach(v=>{
-    const o = document.createElement('div');
-    o.className = 'opt' + (state.filters['variant'].has(v) ? ' on' : '');
-    o.textContent = v;
-    o.dataset.value = v;
-    o.addEventListener('click', ()=>{
-      const set = state.filters['variant'];
-      if(set.has(v)) set.delete(v); else set.add(v);
-      o.classList.toggle('on');
+  const set = state.filters['variant'];
+  variants.forEach(v => {
+    const row = document.createElement('label');
+    row.className = 'dd-row' + (set.has(v) ? ' on' : '');
+    row.innerHTML = '<input type="checkbox" '+(set.has(v)?'checked':'')+'><span>'+v+'</span>';
+    const cb = row.querySelector('input');
+    cb.addEventListener('change', () => {
+      if(cb.checked) set.add(v); else set.delete(v);
+      row.classList.toggle('on', cb.checked);
       updateGroupHeader('variant');
       render();
     });
-    opts.appendChild(o);
+    opts.appendChild(row);
   });
+  if(!opts.children.length){
+    const empty = document.createElement('div');
+    empty.className = 'dd-empty';
+    empty.textContent = 'No variants available';
+    opts.appendChild(empty);
+  }
   updateGroupHeader('variant');
 
   // Show a hint if items are selected
@@ -5032,6 +5193,8 @@ function finishEdit(td, rawIdx, key, newVal){
   markModified();
   // Refresh the entire row to show calculated values
   refreshRowDisplay(td.parentElement, rawIdx);
+  // Live-update dashboard charts/KPIs (debounced)
+  if(typeof scheduleLiveRender === 'function') scheduleLiveRender();
 }
 function startEditNew(td, nIdx, key, currentVal){
   if(td.classList.contains('editing')) return;
@@ -5107,6 +5270,18 @@ function finishEditNew(td, nIdx, key, newVal){
   markModified();
   // Refresh the entire row
   refreshRowDisplay(td.parentElement, null, nIdx);
+  // Live-update dashboard charts/KPIs (debounced)
+  if(typeof scheduleLiveRender === 'function') scheduleLiveRender();
+}
+
+// Debounced live-render so dashboard reflects edits without lagging while typing
+let _liveRenderTimer = null;
+function scheduleLiveRender(){
+  if(_liveRenderTimer) clearTimeout(_liveRenderTimer);
+  _liveRenderTimer = setTimeout(() => {
+    _liveRenderTimer = null;
+    try{ render(); }catch(e){ console.error('live render failed:', e); }
+  }, 350);
 }
 
 // Hide selected rows
