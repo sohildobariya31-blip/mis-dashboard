@@ -39,6 +39,16 @@ var SOURCES = [
       { name: 'Other material', tag: 'Other material 26-27' },
     ],
   },
+  // PO Register — separate Google Sheet
+  {
+    id: '1U6YoJCqINlSDTf4CQC1yglEzZQ3wj0eoTQLgvICcdhM',
+    label: 'PO Register',
+    sheets: [
+      { name: '26-27',          tag: 'PO Register 26-27' },
+      { name: '25-26',          tag: 'PO Register 25-26' },
+      { name: 'Longi (25-26)',  tag: 'PO Register Longi 25-26' },
+    ],
+  },
   // Uncomment + fill if you want this single script to also serve the other file.
   // Otherwise leave commented and host a second script in the 25-26 sheet.
   //

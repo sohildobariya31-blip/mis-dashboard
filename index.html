@@ -1794,7 +1794,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.20</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.21</span></footer>
 
 
 <script>
@@ -6144,6 +6144,7 @@ document.getElementById('menuLiveSheets').addEventListener('click', fetchFromPub
 // Hardcoded defaults so users don't have to paste URLs.
 // ============================================================
 const APPS_SCRIPT_URLS_DEFAULT = [
+  'https://script.google.com/macros/s/AKfycbyTeBiaelf2DfrC9pfzfHIpwz_RnZlpube2xCKDk2QhslAx9b-mH2JtQrCe7v67g4lvkA/exec',
   'https://script.google.com/macros/s/AKfycbz4FDXEaEKVt3xKFI8-wmNiz729QIskaxkJdOvgX0osi_pEoCzaGlGwBOFqodFMfAK1/exec',
   'https://script.google.com/macros/s/AKfycbzEzBf3XF0ky2NA5afOJr1WGVgS5Mqj34TH66VzZ9qZvQU-rpWVT4zxgDvMBNF88I60/exec',
 ];
@@ -6200,12 +6201,11 @@ function promptForAppsScriptUrls(prefill){
   return urls;
 }
 
-// Map an Apps Script URL to expected sheet tags. The script for 26-27 returns BOM 26-27 and
-// Other material 26-27. The script for 25-26 returns BOM 25-26 and Other material 25-26. We
-// figure out which is which by checking the URL against our defaults.
+// Map an Apps Script URL to expected sheet tags.
 function _appsScriptUrlYear(url){
-  if(url === APPS_SCRIPT_URLS_DEFAULT[0]) return '26-27';
-  if(url === APPS_SCRIPT_URLS_DEFAULT[1]) return '25-26';
+  if(url === APPS_SCRIPT_URLS_DEFAULT[0]) return 'po-register';
+  if(url === APPS_SCRIPT_URLS_DEFAULT[1]) return '26-27';
+  if(url === APPS_SCRIPT_URLS_DEFAULT[2]) return '25-26';
   return null;
 }
 function _appsScriptInferredSheets(urls){
@@ -6213,9 +6213,16 @@ function _appsScriptInferredSheets(urls){
   const items = [];
   urls.forEach(function(url){
     const year = _appsScriptUrlYear(url);
-    if(year){
-      items.push({ name: 'BOM ' + year,            year: year, kind: 'bom',   url: url });
-      items.push({ name: 'Other material ' + year, year: year, kind: 'other', url: url });
+    if(year === '26-27'){
+      items.push({ name: 'BOM 26-27',            year: '26-27', kind: 'bom',   url: url });
+      items.push({ name: 'Other material 26-27', year: '26-27', kind: 'other', url: url });
+    } else if(year === '25-26'){
+      items.push({ name: 'BOM 25-26',            year: '25-26', kind: 'bom',   url: url });
+      items.push({ name: 'Other material 25-26', year: '25-26', kind: 'other', url: url });
+    } else if(year === 'po-register'){
+      items.push({ name: 'PO Register 26-27',       year: '26-27', kind: 'other', url: url });
+      items.push({ name: 'PO Register 25-26',       year: '25-26', kind: 'other', url: url });
+      items.push({ name: 'PO Register Longi 25-26', year: '25-26', kind: 'other', url: url });
     } else {
       // unknown URL — list it as a single generic entry
       const short = url.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 18) + '…';
@@ -6283,6 +6290,7 @@ async function fetchFromAppsScript(opts){
 
   const t0 = performance.now();
   const allRows = [];
+  const poRegRows = []; // PO Register rows routed separately
   const sheetInfo = [];
   let totalServerMs = 0;
   let done = 0;
@@ -6325,7 +6333,12 @@ async function fetchFromAppsScript(opts){
         if(acceptedTags && !acceptedTags.has(s.tag)) continue;
         const rs = appsScriptRowsToObjects(s.data, s.tag);
         rs.forEach(r => { r._source = 'Apps Script (live)'; r._sheet = s.tag; });
-        allRows.push(...rs);
+        // Route PO Register data to the PO Register tab, not the main dashboard
+        if(s.tag && s.tag.toLowerCase().indexOf('po register') !== -1){
+          poRegRows.push(...rs);
+        } else {
+          allRows.push(...rs);
+        }
         sheetInfo.push(s.tag + ' (' + rs.length + ')');
         rowsHere += rs.length;
       }
@@ -6347,21 +6360,42 @@ async function fetchFromAppsScript(opts){
   clearInterval(elapsedTimer);
   const totalMs = Math.round(performance.now() - t0);
 
-  if(allRows.length){
-    const meta = {
-      sourceFile: 'Apps Script (live)',
-      sheet: sheetInfo.join(', '),
-      rowCount: allRows.length,
-      generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
-    };
-    if(loadText) loadText.textContent = 'Rendering dashboard…';
-    if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
-    if(progress) progress.querySelector('.bar').style.width = '100%';
-    window._dashboardReload({ rows: allRows, meta });
+  if(allRows.length || poRegRows.length){
+    if(allRows.length){
+      const meta = {
+        sourceFile: 'Apps Script (live)',
+        sheet: sheetInfo.join(', '),
+        rowCount: allRows.length,
+        generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
+      };
+      if(loadText) loadText.textContent = 'Rendering dashboard…';
+      if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
+      if(progress) progress.querySelector('.bar').style.width = '100%';
+      window._dashboardReload({ rows: allRows, meta });
+    }
+    // Route PO Register rows to the PO Register tab
+    if(poRegRows.length){
+      try{
+        const poData = [];
+        const bySheet = {};
+        poRegRows.forEach(r => {
+          const sn = r._sheet || 'PO Register';
+          if(!bySheet[sn]) bySheet[sn] = [];
+          bySheet[sn].push(r);
+        });
+        for(const [sn, rows] of Object.entries(bySheet)){
+          poData.push({ sheetName: sn, rows });
+        }
+        try{ localStorage.setItem('mis_po_register', JSON.stringify(poData)); }catch(e){}
+        // Trigger PO Register render if the function exists
+        if(typeof window._poRegReload === 'function') window._poRegReload(poData);
+      }catch(e){ console.error('PO Register routing error:', e); }
+    }
     document.getElementById('refreshBtn').style.display = '';
     document.getElementById('refreshBtn').dataset.source = 'appsScript';
     document.getElementById('menuDisconnect').style.display = '';
-    if(!silent) toast('⚡ Live: ' + allRows.length.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
+    const totalLoaded = allRows.length + poRegRows.length;
+    if(!silent) toast('⚡ Live: ' + totalLoaded.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
   } else {
     if(!silent) toast('Apps Script returned 0 rows. Check the script and sheet IDs.', 'warn', 5500);
   }
@@ -7087,6 +7121,13 @@ if(RAW.length > 0){
    PO Register Tab — standalone record-keeping table
    ========================================================================= */
 (function(){
+  // Expose a reload hook so Apps Script fetch can push PO Register data here
+  window._poRegReload = function(data){
+    poData = data || [];
+    try{ localStorage.setItem('mis_po_register', JSON.stringify(poData)); }catch(e){}
+    renderPOTable();
+  };
+
   const PO_COLS = [
     {key:'category',label:'Category'},
     {key:'poNo',label:'PO no'},
