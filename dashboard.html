@@ -1104,8 +1104,8 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     </div>
   </div>
 
-  <!-- TABS (always visible, outside dashContent) -->
-  <div class="tabs" id="mainTabs">
+  <!-- TABS (hidden until data loads) -->
+  <div class="tabs" id="mainTabs" style="display:none">
     <button class="tab-btn active" data-tab="filters">🔍 Filters & Settings</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
     <button class="tab-btn" data-tab="table">📋 Records</button>
@@ -1933,8 +1933,13 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     var ov=document.getElementById('loadingOverlay');
     if(ov) ov.classList.add('hide');
   }
-  window.addEventListener('load', function(){ setTimeout(hideOverlay, 400); });
-  document.addEventListener('DOMContentLoaded', function(){ setTimeout(hideOverlay, 1500); });
+  // If cached data exists, hide overlay immediately for instant load
+  if(window.PURCHASE_DATA && window.PURCHASE_DATA.rows && window.PURCHASE_DATA.rows.length > 0){
+    document.addEventListener('DOMContentLoaded', function(){ hideOverlay(); });
+  } else {
+    window.addEventListener('load', function(){ setTimeout(hideOverlay, 400); });
+    document.addEventListener('DOMContentLoaded', function(){ setTimeout(hideOverlay, 1500); });
+  }
   // Hard fallback after 5s no matter what (e.g. if a CDN script fails to load)
   setTimeout(hideOverlay, 5000);
 
@@ -1955,8 +1960,10 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     document.addEventListener('DOMContentLoaded', function(){
       var es=document.getElementById('emptyState');
       var dc=document.getElementById('dashContent');
+      var mt=document.getElementById('mainTabs');
       if(es) es.style.display='none';
       if(dc) dc.style.display='';
+      if(mt) mt.style.display='';
     });
   } else if(!window.PURCHASE_DATA || !window.PURCHASE_DATA.rows || window.PURCHASE_DATA.rows.length===0){
     // No data and no Google Sheets — show upload screen
@@ -1970,8 +1977,10 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     document.addEventListener('DOMContentLoaded', function(){
       var es=document.getElementById('emptyState');
       var dc=document.getElementById('dashContent');
+      var mt=document.getElementById('mainTabs');
       if(es) es.style.display='none';
       if(dc) dc.style.display='';
+      if(mt) mt.style.display='';
     });
   }
 })();
@@ -2163,6 +2172,7 @@ window._dashboardReload = function(parsed){
   if(!state.from && !state.to) initDates();
   document.getElementById('dashContent').style.display = '';
   document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('mainTabs').style.display = '';
   try { render(); } catch(e) { console.error('render() error:', e); }
   if(typeof refreshFxTab === 'function') refreshFxTab();
   // Defer localStorage save to avoid blocking the main thread
@@ -2456,12 +2466,14 @@ function renderPayments() {
     return '<th class="' + (isSorted ? 'sorted' : '') + '" data-pay-sort="' + col.key + '">' + col.label + '<span class="sort-arrow">' + arrow + '</span></th>';
   }).join('');
 
-  // Render body rows
+  // Render body rows (limit to 500 for performance, same as Records tab)
   if (sorted.length === 0) {
     tbody.innerHTML = '<tr><td colspan="' + PAY_COLUMNS.length + '" style="text-align:center;padding:20px;color:var(--muted)">No records match current filters</td></tr>';
   } else {
     const fxOn = state.fx && state.fx.convert;
-    tbody.innerHTML = sorted.map(function(r) {
+    const payLimit = 500;
+    const paySlice = sorted.slice(0, payLimit);
+    tbody.innerHTML = paySlice.map(function(r) {
       const calc = payCalcColumns(r);
       return '<tr>' + PAY_COLUMNS.map(function(col) {
         var val = '';
@@ -2492,6 +2504,9 @@ function renderPayments() {
         return '<td>' + val + '</td>';
       }).join('') + '</tr>';
     }).join('');
+    if (sorted.length > payLimit) {
+      tbody.insertAdjacentHTML('beforeend', '<tr><td colspan="' + PAY_COLUMNS.length + '" style="text-align:center;color:var(--muted);padding:10px">Showing first ' + payLimit + ' of ' + sorted.length + ' rows. Use filters or search to narrow results.</td></tr>');
+    }
   }
 
   // Update row count indicator
@@ -5498,7 +5513,7 @@ const _origApplyFilters = applyFilters;
 // Patch renderTableBody to show checkboxes, editable cells, hidden rows
 const _origRenderTableBody = renderTableBody;
 renderTableBody = function(){
-  // Auto-hide item-specific columns based on active filter
+  // Auto-show/hide item-specific columns based on active filter
   const selectedItems = state.filters['itemCode'];
   let colsChanged = false;
   // Full per-category column lists
@@ -5512,7 +5527,7 @@ renderTableBody = function(){
     const hasFrame = items.some(i=>i.indexOf('frame')!==-1 || i.indexOf('al.')!==-1);
     const hasGlass = items.some(i=>i.indexOf('glass')!==-1);
     const before = state.visibleCols.length;
-    // Strip non-applicable special columns
+    // If specific items selected but none are solar/frame/glass, hide those columns
     if(!hasSolar) solarCols.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
     if(!hasFrame) frameCols.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
     if(!hasGlass) glassCols.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
@@ -5522,10 +5537,9 @@ renderTableBody = function(){
     if(hasGlass) glassCols.forEach(k=>{ if(!state.visibleCols.includes(k)) state.visibleCols.push(k); });
     if(state.visibleCols.length !== before) colsChanged = true;
   } else {
-    // No item filter: hide ALL special-category columns to keep the table tidy
+    // No item filter (All): show all calculation columns so user sees everything
     const before = state.visibleCols.length;
-    allSpecial.forEach(k=>{ state.visibleCols = state.visibleCols.filter(c=>c!==k); });
-    if(state.visibleCols.length !== before) colsChanged = true;
+    allSpecial.forEach(k=>{ if(!state.visibleCols.includes(k)) { state.visibleCols.push(k); colsChanged = true; } });
   }
   // Re-render header if columns changed to keep alignment
   if(colsChanged) renderHeader();
