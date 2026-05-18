@@ -1741,6 +1741,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
       <button class="rec-tab active" data-poreg-sheet="all">All</button>
       <button class="rec-tab" data-poreg-sheet="26-27">26-27</button>
       <button class="rec-tab" data-poreg-sheet="25-26">25-26</button>
+      <button class="rec-tab" data-poreg-sheet="2627_2526">26-27 + 25-26</button>
       <button class="rec-tab" data-poreg-sheet="longi2526">Longi (25-26)</button>
       <button class="rec-tab" data-poreg-sheet="24-25">24-25</button>
     </div>
@@ -7894,7 +7895,12 @@ if(RAW.length > 0){
     // Filter rows
     let rows = [];
     poData.forEach(d => {
-      if(poActiveSheet === 'all' || d.sheetName.toLowerCase().indexOf(poActiveSheet) !== -1){
+      const sn = d.sheetName.toLowerCase();
+      if(poActiveSheet === 'all'){
+        rows.push(...d.rows);
+      } else if(poActiveSheet === '2627_2526'){
+        if(sn.indexOf('26-27') !== -1 || sn.indexOf('25-26') !== -1) rows.push(...d.rows);
+      } else if(sn.indexOf(poActiveSheet) !== -1){
         rows.push(...d.rows);
       }
     });
