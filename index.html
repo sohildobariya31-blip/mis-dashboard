@@ -1072,8 +1072,8 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     </span>
   </div>
 
-  <!-- TABS -->
-  <div class="tabs">
+  <!-- TABS (outside dashContent so PO Register tab is always visible) -->
+  <div class="tabs" id="mainTabs">
     <button class="tab-btn active" data-tab="filters">🔍 Filters & Settings</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
     <button class="tab-btn" data-tab="table">📋 Records</button>
@@ -1667,7 +1667,9 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 
   </div><!-- /tab-table -->
 
-  <!-- TAB: PO REGISTER -->
+  </div><!-- /#dashContent -->
+
+  <!-- TAB: PO REGISTER (outside dashContent so it's always accessible) -->
   <div class="tab-panel" id="tab-poregister">
   <div class="section-h"><h2>Purchase Order Register</h2><div class="line"></div></div>
   <div class="card animate">
@@ -1711,8 +1713,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
   </div><!-- /tab-poregister -->
 
-  </div><!-- /#dashContent -->
-</div>
+</div><!-- /.container -->
 
 <!-- Column picker drawer -->
 <div class="drawer-bg" id="drawerBg"></div>
@@ -1793,7 +1794,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.19</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.20</span></footer>
 
 
 <script>
@@ -4244,7 +4245,14 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
     const panel = document.getElementById('tab-'+tab);
     if(panel) panel.classList.add('active');
-    // Trigger chart resize when switching to dashboard tab (charts need visible container)
+    // PO Register is outside dashContent — show/hide dashContent accordingly
+    const dc = document.getElementById('dashContent');
+    if(tab === 'poregister'){
+      if(dc) dc.style.display = 'none';
+    } else {
+      if(dc && RAW && RAW.length > 0) dc.style.display = '';
+    }
+    // Trigger chart resize when switching to dashboard tab
     if(tab === 'dashboard'){
       setTimeout(()=>{ Object.values(charts).forEach(c=>{ if(c && c.resize) c.resize(); }); }, 50);
     }
