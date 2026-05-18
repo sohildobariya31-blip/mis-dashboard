@@ -437,6 +437,22 @@ header .btn-row .btn.ghost{padding:7px 10px}
 .fgroup-dd{position:relative;overflow:visible}
 .fgroup-dd.open{z-index:55}
 
+/* Records sub-tabs */
+.rec-tabs{
+  display:flex;gap:0;background:var(--bg2);border:1px solid var(--border);
+  border-radius:10px;padding:3px;margin-bottom:12px;overflow-x:auto;
+}
+.rec-tab{
+  flex:1;padding:8px 14px;border:none;background:transparent;color:var(--muted);
+  font-size:12px;font-weight:600;cursor:pointer;border-radius:8px;
+  transition:all .2s ease;text-align:center;white-space:nowrap;
+}
+.rec-tab:hover{color:var(--text);background:var(--card)}
+.rec-tab.active{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:var(--accent-text);box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
 /* Active pills */
 .active-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:10px;border-top:1px dashed color-mix(in srgb, var(--border) 70%, transparent)}
 .active-pills:empty{display:none}
@@ -1601,6 +1617,14 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
         <button class="btn secondary" id="addBackAllBtn">+ All columns</button>
       </span>
     </h3>
+    <!-- Sub-tabs for per-sheet view -->
+    <div class="rec-tabs" id="recTabs">
+      <button class="rec-tab active" data-rec-sheet="all">All</button>
+      <button class="rec-tab" data-rec-sheet="bom2627">BOM 26-27</button>
+      <button class="rec-tab" data-rec-sheet="bom2526">BOM 25-26</button>
+      <button class="rec-tab" data-rec-sheet="other2627">Other 26-27</button>
+      <button class="rec-tab" data-rec-sheet="other2526">Other 25-26</button>
+    </div>
     <div class="table-toolbar">
       <input id="tblSearch" placeholder="Global search across visible columns..."/>
       <select id="tblPay" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">
@@ -1724,7 +1748,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.17</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.18</span></footer>
 
 
 <script>
@@ -2105,6 +2129,7 @@ const state = {
   search:'', tblPay:'',
   colSearch:{}, visibleCols:ALL_COLUMNS.filter(c=>c.default).map(c=>c.key),
   rowOrder:[],   // user-defined row reordering — stores raw indices in custom order
+  recSheet:'all', // Records sub-tab: 'all', 'bom2627', 'bom2526', 'other2627', 'other2526'
   sortKey:'poDate', sortDir:'desc',
   // configurable cards
   cards:{
@@ -4816,7 +4841,22 @@ renderTableBody = function(){
   // Re-render header if columns changed to keep alignment
   if(colsChanged) renderHeader();
 
-  const baseFiltered = _origApplyFilters(RAW);
+  let baseFiltered = _origApplyFilters(RAW);
+  // Apply Records sub-tab sheet filter
+  if(state.recSheet && state.recSheet !== 'all'){
+    baseFiltered = baseFiltered.filter(r => {
+      const sheet = (r._sheet || '').toLowerCase();
+      const source = (r._source || '').toLowerCase();
+      const combined = sheet + ' ' + source;
+      switch(state.recSheet){
+        case 'bom2627': return sheet.indexOf('bom') !== -1 && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
+        case 'bom2526': return sheet.indexOf('bom') !== -1 && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
+        case 'other2627': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('26-27') !== -1 || combined.indexOf('2627') !== -1);
+        case 'other2526': return (sheet.indexOf('other') !== -1 || sheet.indexOf('material') !== -1) && (combined.indexOf('25-26') !== -1 || combined.indexOf('2526') !== -1);
+        default: return true;
+      }
+    });
+  }
   let rows = applyTableOnly(baseFiltered);
   // Add new rows to table view
   const newFiltered = applyTableOnly(editState.newRows.filter(r=>{
@@ -5018,6 +5058,35 @@ renderTableBody = function(){
       t.classList.remove('row-drop-above'); t.classList.remove('row-drop-below');
     });
     toast('Row reordered. Order persists for this session.', 'success', 2000);
+  });
+})();
+
+// Records sub-tab switching
+(function(){
+  const tabs = document.getElementById('recTabs');
+  if(!tabs) return;
+
+  // Column sets per sheet type
+  const BOM_EXTRA_COLS = ['_wp','_wpTotal','_ratePerWp','_inrPerWp','_inrPerCell','_invoiceTotalINR',
+    '_frameType','_frameInfo','_sets','_costPerSet','_costPerSetINR','_inrPerFramePc','_totalSetCost','_totalSetCostINR',
+    '_glassAreaPerPc','_glassQtyPcs','_glassQtySqm','_glassRatePerSqm','_glassRatePerSqmINR','_glassRatePerPc','_glassRatePerPcNat','_glassTotalINR'];
+  const OTHER_HIDE_COLS = BOM_EXTRA_COLS; // Other material doesn't need these
+
+  tabs.addEventListener('click', function(e){
+    const btn = e.target.closest('.rec-tab');
+    if(!btn) return;
+    tabs.querySelectorAll('.rec-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.recSheet = btn.dataset.recSheet;
+
+    // Adjust visible columns based on sub-tab
+    if(state.recSheet.indexOf('other') !== -1){
+      // Other material: hide BOM-specific columns
+      OTHER_HIDE_COLS.forEach(k => { state.visibleCols = state.visibleCols.filter(c => c !== k); });
+    }
+    // For BOM tabs: the auto-show/hide in renderTableBody handles it based on item filter
+
+    renderTableBody();
   });
 })();
 
