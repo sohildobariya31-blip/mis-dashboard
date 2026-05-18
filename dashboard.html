@@ -298,7 +298,7 @@ header .btn-row .btn.ghost{padding:7px 10px}
   padding:18px 18px 14px 18px;
   margin-bottom:16px;
   box-shadow:0 8px 28px rgba(0,0,0,.18), inset 0 1px 0 color-mix(in srgb, var(--accent) 8%, transparent);
-  overflow:hidden;
+  overflow:visible;
 }
 .filter-card::before{
   content:"";position:absolute;inset:0;border-radius:18px;padding:1px;
@@ -336,7 +336,7 @@ header .btn-row .btn.ghost{padding:7px 10px}
 .chip.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--accent-text);border-color:transparent;font-weight:700;box-shadow:0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent)}
 
 /* Filter groups */
-.fgroups{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:8px}
+.fgroups{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:8px;overflow:visible}
 .fgroup{
   position:relative;
   background:linear-gradient(180deg, var(--bg2) 0%, color-mix(in srgb, var(--bg2) 92%, var(--card)) 100%);
@@ -434,7 +434,8 @@ header .btn-row .btn.ghost{padding:7px 10px}
 .dd-empty{padding:16px;text-align:center;color:var(--muted);font-size:12px}
 
 /* Make fgroup-dd position relative for popover */
-.fgroup-dd{position:relative}
+.fgroup-dd{position:relative;overflow:visible}
+.fgroup-dd.open{z-index:55}
 
 /* Active pills */
 .active-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:10px;border-top:1px dashed color-mix(in srgb, var(--border) 70%, transparent)}
@@ -1609,6 +1610,14 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
       </select>
       <span class="count" id="tblCount"></span>
     </div>
+    <div id="tblSummary" style="padding:8px 14px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb, var(--bg2) 90%, transparent),color-mix(in srgb, var(--card) 90%, transparent));border:1px solid var(--border);border-radius:10px;font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+      <span style="font-weight:700;color:var(--text)">📊 Filtered Summary</span>
+      <span id="tblSumRows" style="color:var(--muted)">-</span>
+      <span id="tblSumPayable" style="color:var(--good);font-weight:600">-</span>
+      <span id="tblSumOutstanding" style="color:var(--warn);font-weight:600">-</span>
+      <span id="tblSumPaid" style="color:var(--accent);font-weight:600">-</span>
+      <span id="tblSumQty" style="color:var(--muted)">-</span>
+    </div>
     <div class="table-toolbar" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
       <button class="btn ghost" id="tblAddRow">+ Add row</button>
       <button class="btn ghost" id="tblRecordDelivery" disabled title="Record partial/full delivery for selected PO">📦 Record delivery</button>
@@ -1715,7 +1724,7 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   </div>
 </div>
 
-<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.16</span></footer>
+<footer class="foot">Drop or upload an Excel file with the same column layout to refresh. Everything runs locally in your browser. <span style="opacity:.5">v2026.05.17.17</span></footer>
 
 
 <script>
@@ -3337,11 +3346,14 @@ function syncCardTitles(){
   // Show active filter context on each chart hint
   const filterCtx = getActiveFilterSummary();
   const metricSuffix = state.kpiMetric === 'amount' ? ' (excl. GST)' : (state.kpiMetric === 'payable' ? ' (incl. GST)' : '');
-  document.getElementById('card1Hint').textContent = `${METRIC_LABEL[state.cards.card1.metric]}${metricSuffix}${filterCtx ? ' | ' + filterCtx : ''}`;
-  document.getElementById('card2Hint').textContent = `${METRIC_LABEL[state.cards.card2.metric]}${metricSuffix}${filterCtx ? ' | ' + filterCtx : ''}`;
-  document.getElementById('card3Hint').textContent = `${METRIC_LABEL[state.cards.card3.metric]}${filterCtx ? ' | ' + filterCtx : ''}`;
-  document.getElementById('vendorHint').textContent = `by ${METRIC_LABEL[state.cards.vendor.metric]}${filterCtx ? ' | ' + filterCtx : ''}`;
-  document.getElementById('itemHint').textContent = `by ${METRIC_LABEL[state.cards.item.metric]}${filterCtx ? ' | ' + filterCtx : ''}`;
+  // Show total amount in each chart hint
+  const chartTotal = filtered.reduce((s,r) => s + metricValueFn(state.kpiMetric)(r), 0);
+  const totalStr = '₹' + fmtAmount(chartTotal);
+  document.getElementById('card1Hint').textContent = `${totalStr} · ${METRIC_LABEL[state.cards.card1.metric]}${metricSuffix}${filterCtx ? ' | ' + filterCtx : ''}`;
+  document.getElementById('card2Hint').textContent = `${totalStr} · ${METRIC_LABEL[state.cards.card2.metric]}${metricSuffix}${filterCtx ? ' | ' + filterCtx : ''}`;
+  document.getElementById('card3Hint').textContent = `${totalStr} · ${METRIC_LABEL[state.cards.card3.metric]}${filterCtx ? ' | ' + filterCtx : ''}`;
+  document.getElementById('vendorHint').textContent = `${totalStr} · by ${METRIC_LABEL[state.cards.vendor.metric]}${filterCtx ? ' | ' + filterCtx : ''}`;
+  document.getElementById('itemHint').textContent = `${totalStr} · by ${METRIC_LABEL[state.cards.item.metric]}${filterCtx ? ' | ' + filterCtx : ''}`;
 }
 
 // Generate a short summary of active filters for chart headers
@@ -4825,6 +4837,27 @@ renderTableBody = function(){
   const total = rows.reduce((s,r)=>s+(r.payable||0),0);
   document.getElementById('tblCount').textContent = `${rows.length + editState.newRows.length} rows - ${fmtAmount(total)}`;
   document.getElementById('tblHint').textContent = `${rows.length} of ${baseFiltered.length} - ${state.visibleCols.length} cols`;
+
+  // Populate filtered summary strip (matches dashboard KPIs)
+  try{
+    const fnPay = metricValueFn('payable');
+    const fnOut = metricValueFn('outstanding');
+    const fnPaid = metricValueFn('paid');
+    const chartRows = applyChartFilters(RAW);
+    const sumPay = chartRows.reduce((s,r) => s + fnPay(r), 0);
+    const sumOut = chartRows.reduce((s,r) => s + fnOut(r), 0);
+    const sumPaid = chartRows.reduce((s,r) => s + fnPaid(r), 0);
+    const sumQty = chartRows.reduce((s,r) => s + (r.qty||0), 0);
+    const el = document.getElementById('tblSummary');
+    if(el){
+      el.style.display = 'flex';
+      document.getElementById('tblSumRows').textContent = chartRows.length.toLocaleString('en-IN') + ' rows';
+      document.getElementById('tblSumPayable').textContent = '₹' + fmtAmount(sumPay) + ' payable';
+      document.getElementById('tblSumOutstanding').textContent = '₹' + fmtAmount(sumOut) + ' outstanding';
+      document.getElementById('tblSumPaid').textContent = '₹' + fmtAmount(sumPaid) + ' paid';
+      document.getElementById('tblSumQty').textContent = sumQty.toLocaleString('en-IN') + ' qty';
+    }
+  }catch(e){}
 
   const limit = 500;
   const slice = rows.slice(0, limit);
