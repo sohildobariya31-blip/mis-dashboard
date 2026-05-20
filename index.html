@@ -1946,9 +1946,11 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
   // Hard fallback after 5s no matter what (e.g. if a CDN script fails to load)
   setTimeout(hideOverlay, 5000);
 
-  // Check if Google Sheets or SharePoint config exists — if yes, skip upload screen
+  // Check if any live-source config exists — if yes, skip upload screen
   var hasGSheetConfig = false;
   var hasSPConfig = false;
+  var hasAppsScriptConfig = false;
+  var hasSpAppsScriptConfig = false;
   try{
     var saved = localStorage.getItem('mis_gsheet_config');
     if(saved){ var cfg = JSON.parse(saved); if(cfg && cfg.urls && cfg.urls.length > 0) hasGSheetConfig = true; }
@@ -1957,9 +1959,27 @@ footer.foot{color:var(--muted);font-size:12px;text-align:center;padding:18px}
     var saved2 = localStorage.getItem('mis_sp_config');
     if(saved2){ var cfg2 = JSON.parse(saved2); if(cfg2 && cfg2.urls && cfg2.urls.length > 0) hasSPConfig = true; }
   }catch(e){}
+  try{
+    var appsSaved = localStorage.getItem('mis.appsScriptUrls');
+    if(appsSaved){
+      var appsCfg = JSON.parse(appsSaved);
+      if(Array.isArray(appsCfg) && appsCfg.length > 0) hasAppsScriptConfig = true;
+    }
+    if(!hasAppsScriptConfig){
+      var appsSingle = localStorage.getItem('mis.appsScriptUrl');
+      if(appsSingle && String(appsSingle).trim()) hasAppsScriptConfig = true;
+    }
+  }catch(e){}
+  try{
+    var spAppsSaved = localStorage.getItem('mis.spAppsScriptUrls');
+    if(spAppsSaved){
+      var spAppsCfg = JSON.parse(spAppsSaved);
+      if(Array.isArray(spAppsCfg) && spAppsCfg.length > 0) hasSpAppsScriptConfig = true;
+    }
+  }catch(e){}
 
-  if(hasGSheetConfig || hasSPConfig){
-    // Google Sheets configured — show dashboard (empty initially, auto-fetch will populate)
+  if(hasGSheetConfig || hasSPConfig || hasAppsScriptConfig || hasSpAppsScriptConfig){
+    // Live source configured — show dashboard (empty initially, auto-fetch/background fetch will populate)
     document.addEventListener('DOMContentLoaded', function(){
       var es=document.getElementById('emptyState');
       var dc=document.getElementById('dashContent');
@@ -6909,6 +6929,10 @@ function _appsScriptInferredSheets(urls){
   return items;
 }
 
+function canonicalSheetTag(tag){
+  return String(tag || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
 async function fetchFromAppsScript(opts){
   opts = opts || {};
   const silent = !!opts.silent;
@@ -6929,10 +6953,10 @@ async function fetchFromAppsScript(opts){
       picked = await pickSheetsFromList(items, {
         title: '⚡ Load via Apps Script (live)',
         subtitle: 'Pick which sheets to load. Faster fetch via direct API (bypasses CSV cache).',
-        storageKey: 'mis.appsScriptPicker',
+        storageKey: 'mis.appsScriptPicker.v2',
       });
     }catch(e){ return; /* cancelled */ }
-    acceptedTags = new Set(picked.map(i => items[i].name));
+    acceptedTags = new Set(picked.map(i => canonicalSheetTag(items[i].name)));
     // Reduce urls to only those that have at least one selected sheet
     const usedUrls = new Set();
     picked.forEach(i => usedUrls.add(items[i].url));
@@ -6996,10 +7020,16 @@ async function fetchFromAppsScript(opts){
 
   function fetchWithTimeout(url, ms){
     const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
-    const opts = { cache:'no-store', redirect:'follow' };
-    if(ctrl) opts.signal = ctrl.signal;
-    return fetch(url, opts).finally(() => { if(timer) clearTimeout(timer); });
+    const fetchOpts = { cache:'no-store', redirect:'follow' };
+    if(ctrl) fetchOpts.signal = ctrl.signal;
+    let timer = null;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        try{ if(ctrl) ctrl.abort(); }catch(e){}
+        reject(new Error('timeout (>' + Math.round(ms/1000) + 's)'));
+      }, ms);
+    });
+    return Promise.race([fetch(url, fetchOpts), timeoutPromise]).finally(() => { if(timer) clearTimeout(timer); });
   }
 
   const TIMEOUT_MS = 90000; // Apps Script can be slow on first call (~5-10s warm-up)
@@ -7015,7 +7045,7 @@ async function fetchFromAppsScript(opts){
       for(const s of sheets){
         if(s.error){ sheetInfo.push(s.tag + ' (' + s.error + ')'); continue; }
         // Skip sheets the user didn't pick
-        if(acceptedTags && !acceptedTags.has(s.tag)) continue;
+        if(acceptedTags && !acceptedTags.has(canonicalSheetTag(s.tag))) continue;
         const rs = appsScriptRowsToObjects(s.data, s.tag);
         rs.forEach(r => { r._source = 'Apps Script (live)'; r._sheet = s.tag; });
         // Route PO Register data to the PO Register tab, not the main dashboard
@@ -7031,7 +7061,7 @@ async function fetchFromAppsScript(opts){
       setRow(i, '✓', 'ok', rowsHere + ' rows · ' + (payload.elapsedMs||0) + 'ms');
     }catch(e){
       console.error('Apps Script fetch failed:', url, e);
-      const msg = (e.name === 'AbortError') ? 'timeout (>90s)' : (e.message || 'failed');
+      const msg = ((e.name === 'AbortError') || /timeout/i.test(e.message || '')) ? 'timeout (>90s)' : (e.message || 'failed');
       setRow(i, '✕', 'err', msg);
     }
     done++;
@@ -7058,7 +7088,12 @@ async function fetchFromAppsScript(opts){
         if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
         if(progress) progress.querySelector('.bar').style.width = '100%';
       }
-      window._dashboardReload({ rows: allRows, meta });
+      try{
+        window._dashboardReload({ rows: allRows, meta });
+      }catch(e){
+        console.error('Apps Script dashboard reload failed:', e);
+        if(!silent) toast('Data fetched, but render failed. Please refresh once.', 'warn', 4500);
+      }
     }
     // Route PO Register rows to the PO Register tab
     if(poRegRows.length){
@@ -7077,6 +7112,12 @@ async function fetchFromAppsScript(opts){
         // Trigger PO Register render if the function exists
         if(typeof window._poRegReload === 'function') window._poRegReload(poData);
       }catch(e){ console.error('PO Register routing error:', e); }
+
+      if(!allRows.length && !silent){
+        toast('Loaded PO Register only. Select BOM/Other material sheets for dashboard charts.', 'info', 5500);
+        const poTab = document.querySelector('.tab-btn[data-tab="poregister"]');
+        if(poTab) poTab.click();
+      }
     }
     document.getElementById('refreshBtn').style.display = '';
     document.getElementById('refreshBtn').dataset.source = 'appsScript';
