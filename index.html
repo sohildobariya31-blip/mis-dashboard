@@ -7209,6 +7209,8 @@ async function fetchFromAppsScript(opts){
   const sheetInfo = [];
   let totalServerMs = 0;
   let done = 0;
+  let failedEndpoints = 0;
+  const endpointErrors = [];
 
   // Live elapsed-seconds counter so user sees something is happening
   let elapsedTimer = null;
@@ -7240,7 +7242,7 @@ async function fetchFromAppsScript(opts){
     return Promise.race([fetch(url, fetchOpts), timeoutPromise]).finally(() => { if(timer) clearTimeout(timer); });
   }
 
-  const TIMEOUT_MS = background ? 20000 : (silent ? 30000 : 45000);
+  const TIMEOUT_MS = background ? 25000 : (silent ? 45000 : 60000);
   const timeoutLabel = '>' + Math.round(TIMEOUT_MS / 1000) + 's';
 
   const promises = urls.map(async function(url, i){
@@ -7271,6 +7273,8 @@ async function fetchFromAppsScript(opts){
     }catch(e){
       console.error('Apps Script fetch failed:', url, e);
       const msg = ((e.name === 'AbortError') || /timeout/i.test(e.message || '')) ? ('timeout (' + timeoutLabel + ')') : (e.message || 'failed');
+      failedEndpoints++;
+      endpointErrors.push((url || 'endpoint') + ': ' + msg);
       setRow(i, '✕', 'err', msg);
     }
     done++;
@@ -7283,59 +7287,82 @@ async function fetchFromAppsScript(opts){
   await Promise.all(promises);
   if(elapsedTimer) clearInterval(elapsedTimer);
   const totalMs = Math.round(performance.now() - t0);
+  const hadExistingData = hasVisibleRows;
+  const applyFetchedData = (failedEndpoints === 0) || !hadExistingData;
+  if(failedEndpoints) console.warn('Apps Script endpoint errors:', endpointErrors);
 
   if(allRows.length || poRegRows.length){
-    if(allRows.length){
-      const meta = {
-        sourceFile: 'Apps Script (live)',
-        sheet: sheetInfo.join(', '),
-        rowCount: allRows.length,
-        generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
-      };
-      if(showOverlay){
-        if(loadText) loadText.textContent = 'Rendering dashboard…';
-        if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
-        if(progress) progress.querySelector('.bar').style.width = '100%';
+    if(!applyFetchedData){
+      if(!silent){
+        const failMsg = failedEndpoints === 1 ? '1 endpoint failed' : (failedEndpoints + ' endpoints failed');
+        toast('Live fetch incomplete (' + failMsg + '). Keeping previous data.', 'warn', 5200);
       }
-      try{
-        window._dashboardReload({ rows: allRows, meta });
-      }catch(e){
-        console.error('Apps Script dashboard reload failed:', e);
-        if(!silent) toast('Data fetched, but render failed. Please refresh once.', 'warn', 4500);
-      }
-    }
-    // Route PO Register rows to the PO Register tab
-    if(poRegRows.length){
-      try{
-        const poData = [];
-        const bySheet = {};
-        poRegRows.forEach(r => {
-          const sn = r._sheet || 'PO Register';
-          if(!bySheet[sn]) bySheet[sn] = [];
-          bySheet[sn].push(r);
-        });
-        for(const [sn, rows] of Object.entries(bySheet)){
-          poData.push({ sheetName: sn, rows });
+    } else {
+      if(allRows.length){
+        const meta = {
+          sourceFile: 'Apps Script (live)',
+          sheet: sheetInfo.join(', '),
+          rowCount: allRows.length,
+          generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
+        };
+        if(showOverlay){
+          if(loadText) loadText.textContent = 'Rendering dashboard…';
+          if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
+          if(progress) progress.querySelector('.bar').style.width = '100%';
         }
-        try{ localStorage.setItem('mis_po_register', JSON.stringify(poData)); }catch(e){}
-        // Trigger PO Register render if the function exists
-        if(typeof window._poRegReload === 'function') window._poRegReload(poData);
-      }catch(e){ console.error('PO Register routing error:', e); }
+        try{
+          window._dashboardReload({ rows: allRows, meta });
+        }catch(e){
+          console.error('Apps Script dashboard reload failed:', e);
+          if(!silent) toast('Data fetched, but render failed. Please refresh once.', 'warn', 4500);
+        }
+      }
+      // Route PO Register rows to the PO Register tab
+      if(poRegRows.length){
+        try{
+          const poData = [];
+          const bySheet = {};
+          poRegRows.forEach(r => {
+            const sn = r._sheet || 'PO Register';
+            if(!bySheet[sn]) bySheet[sn] = [];
+            bySheet[sn].push(r);
+          });
+          for(const [sn, rows] of Object.entries(bySheet)){
+            poData.push({ sheetName: sn, rows });
+          }
+          try{ localStorage.setItem('mis_po_register', JSON.stringify(poData)); }catch(e){}
+          // Trigger PO Register render if the function exists
+          if(typeof window._poRegReload === 'function') window._poRegReload(poData);
+        }catch(e){ console.error('PO Register routing error:', e); }
 
-      if(!allRows.length && !silent){
-        toast('Loaded PO Register only. Select BOM/Other material sheets for dashboard charts.', 'info', 5500);
-        const poTab = document.querySelector('.tab-btn[data-tab="poregister"]');
-        if(poTab) poTab.click();
+        if(!allRows.length && !silent){
+          toast('Loaded PO Register only. Select BOM/Other material sheets for dashboard charts.', 'info', 5500);
+          const poTab = document.querySelector('.tab-btn[data-tab="poregister"]');
+          if(poTab) poTab.click();
+        }
+      }
+      document.getElementById('refreshBtn').style.display = '';
+      document.getElementById('refreshBtn').dataset.source = 'appsScript';
+      document.getElementById('menuDisconnect').style.display = '';
+      try{ localStorage.setItem('mis.lastLiveSource', 'appsScript'); }catch(e){}
+      const totalLoaded = allRows.length + poRegRows.length;
+      if(!silent){
+        if(failedEndpoints > 0 && !hadExistingData){
+          toast('Loaded partial live data (' + totalLoaded.toLocaleString('en-IN') + ' rows). Some endpoints failed.', 'warn', 5200);
+        } else {
+          toast('⚡ Live: ' + totalLoaded.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
+        }
       }
     }
-    document.getElementById('refreshBtn').style.display = '';
-    document.getElementById('refreshBtn').dataset.source = 'appsScript';
-    document.getElementById('menuDisconnect').style.display = '';
-    try{ localStorage.setItem('mis.lastLiveSource', 'appsScript'); }catch(e){}
-    const totalLoaded = allRows.length + poRegRows.length;
-    if(!silent) toast('⚡ Live: ' + totalLoaded.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
   } else {
-    if(!silent) toast('Apps Script returned 0 rows. Check the script and sheet IDs.', 'warn', 5500);
+    if(!silent){
+      if(failedEndpoints){
+        const failMsg = failedEndpoints === 1 ? '1 endpoint failed' : (failedEndpoints + ' endpoints failed');
+        toast('Live fetch failed (' + failMsg + '). Keeping previous data.', 'warn', 5500);
+      } else {
+        toast('Apps Script returned 0 rows. Check the script and sheet IDs.', 'warn', 5500);
+      }
+    }
   }
 
   if(showOverlay){
@@ -7454,13 +7481,19 @@ document.getElementById('refreshBtn').addEventListener('click', async () => {
       const pref = String(localStorage.getItem('mis.autoAppsScriptOnOpen') || '').toLowerCase();
       if(pref === '0' || pref === 'false' || pref === 'off') autoOnOpen = false;
     }catch(e){}
+    let cacheAgeMs = Number.MAX_SAFE_INTEGER;
+    try{
+      const cachedAt = Number((window.PURCHASE_DATA && window.PURCHASE_DATA.cachedAt) || 0);
+      if(cachedAt > 0) cacheAgeMs = Date.now() - cachedAt;
+    }catch(e){}
+    const STALE_CACHE_MS = 10 * 60 * 1000;
+    const hasFreshVisibleCache = (typeof RAW !== 'undefined' && RAW.length > 0 && cacheAgeMs >= 0 && cacheAgeMs < STALE_CACHE_MS);
     const shouldAutoRefresh = autoOnOpen && (
-      lastSource === 'appsScript' ||
-      cacheSource.indexOf('apps script') !== -1 ||
-      (typeof RAW !== 'undefined' && RAW.length === 0)
+      (typeof RAW !== 'undefined' && RAW.length === 0) ||
+      ((lastSource === 'appsScript' || cacheSource.indexOf('apps script') !== -1) && !hasFreshVisibleCache)
     );
     if(shouldAutoRefresh){
-      const delay = (typeof RAW !== 'undefined' && RAW.length > 0) ? 1200 : 1500;
+      const delay = (typeof RAW !== 'undefined' && RAW.length > 0) ? 5000 : 1800;
       setTimeout(function(){ fetchFromAppsScript({ silent:true, background:true }); }, delay);
     }
   }
