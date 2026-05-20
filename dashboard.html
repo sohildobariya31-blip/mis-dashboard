@@ -4018,7 +4018,7 @@ function renderTableBody(){
 /* =========================================================================
    Card title syncing helpers
    ========================================================================= */
-function syncCardTitles(){
+function syncCardTitles(filteredRows){
   const t1 = document.getElementById('card1Title');
   const t2 = document.getElementById('card2Title');
   const t3 = document.getElementById('card3Title');
@@ -4034,7 +4034,8 @@ function syncCardTitles(){
   const filterCtx = getActiveFilterSummary();
   const metricSuffix = state.kpiMetric === 'amount' ? ' (excl. GST)' : (state.kpiMetric === 'payable' ? ' (incl. GST)' : '');
   // Show total amount in each chart hint
-  const chartTotal = filtered.reduce((s,r) => s + metricValueFn(state.kpiMetric)(r), 0);
+  const rows = Array.isArray(filteredRows) ? filteredRows : applyChartFilters(RAW);
+  const chartTotal = rows.reduce((s,r) => s + metricValueFn(state.kpiMetric)(r), 0);
   const totalStr = '₹' + fmtAmount(chartTotal);
   document.getElementById('card1Hint').textContent = `${totalStr} · ${METRIC_LABEL[state.cards.card1.metric]}${metricSuffix}${filterCtx ? ' | ' + filterCtx : ''}`;
   document.getElementById('card2Hint').textContent = `${totalStr} · ${METRIC_LABEL[state.cards.card2.metric]}${metricSuffix}${filterCtx ? ' | ' + filterCtx : ''}`;
@@ -4159,7 +4160,7 @@ function render(){
   try { renderConfigurableCard(filtered, 'card3', 'chCard3'); } catch(e) { console.error('card3 error:', e); }
   try { renderConfigurableCard(filtered, 'vendor', 'chVendor'); } catch(e) { console.error('vendor error:', e); }
   try { renderConfigurableCard(filtered, 'item',   'chItem'); } catch(e) { console.error('item error:', e); }
-  syncCardTitles();
+  syncCardTitles(filtered);
 
   // Comparisons (each wrapped individually so one failure doesn't block others)
   try { renderCompare(filtered); } catch(e) { console.error('renderCompare error:', e); }
@@ -6407,6 +6408,7 @@ async function fetchSharePoint(){
       generatedAt: new Date().toLocaleString(),
     };
     window._dashboardReload({rows: allRows, meta});
+    try{ localStorage.setItem('mis.lastLiveSource', 'sharepoint'); }catch(e){}
     if(status) status.innerHTML = '<span style="color:var(--good)">✓ Loaded ' + allRows.length + ' rows. Last: ' + new Date().toLocaleTimeString() + '</span>';
     toast('SharePoint: ' + allRows.length + ' rows loaded.', 'success');
   } else if(sheetInfo.length === 0){
@@ -6910,6 +6912,8 @@ function _appsScriptInferredSheets(urls){
 async function fetchFromAppsScript(opts){
   opts = opts || {};
   const silent = !!opts.silent;
+  const background = !!opts.background;
+  const showOverlay = !background;
   let urls = opts.urls || getAppsScriptUrls();
   if(!urls.length){
     // Fallback to baked-in defaults — should never reach here since getAppsScriptUrls returns defaults
@@ -6942,20 +6946,24 @@ async function fetchFromAppsScript(opts){
   const progress = document.getElementById('loadingProgress');
   const statusEl = document.getElementById('fetchStatus');
 
-  if(overlay) overlay.classList.remove('hide');
-  if(loadText) loadText.textContent = '⚡ Fetching live data';
-  if(loadSub)  loadSub.textContent  = 'Connecting to ' + urls.length + ' Apps Script endpoint' + (urls.length > 1 ? 's' : '') + '…';
-  if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '4%'; }
-  if(statusEl){
-    statusEl.classList.remove('hide');
-    statusEl.innerHTML = urls.map(function(u, i){
-      const short = u.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 22) + '…';
-      return '<div class="row" data-idx="'+i+'"><span class="ico spin">⟳</span><span class="name">'+short+'</span><span class="count">connecting…</span></div>';
-    }).join('');
+  if(showOverlay){
+    if(overlay) overlay.classList.remove('hide');
+    if(loadText) loadText.textContent = '⚡ Fetching live data';
+    if(loadSub)  loadSub.textContent  = 'Connecting to ' + urls.length + ' Apps Script endpoint' + (urls.length > 1 ? 's' : '') + '…';
+    if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '4%'; }
+    if(statusEl){
+      statusEl.classList.remove('hide');
+      statusEl.innerHTML = urls.map(function(u, i){
+        const short = u.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 22) + '…';
+        return '<div class="row" data-idx="'+i+'"><span class="ico spin">⟳</span><span class="name">'+short+'</span><span class="count">connecting…</span></div>';
+      }).join('');
+    }
+  } else {
+    if(statusEl) statusEl.classList.add('hide');
   }
 
   function setRow(idx, ico, iconCls, count){
-    if(!statusEl) return;
+    if(!showOverlay || !statusEl) return;
     const row = statusEl.querySelector('.row[data-idx="'+idx+'"]');
     if(!row) return;
     row.querySelector('.ico').className = 'ico ' + iconCls;
@@ -6971,18 +6979,20 @@ async function fetchFromAppsScript(opts){
   let done = 0;
 
   // Live elapsed-seconds counter so user sees something is happening
-  const elapsedTimer = setInterval(() => {
-    const sec = ((performance.now() - t0) / 1000).toFixed(1);
-    statusEl && statusEl.querySelectorAll('.row').forEach(row => {
-      const idx = parseInt(row.dataset.idx, 10);
-      const ico = row.querySelector('.ico');
-      const count = row.querySelector('.count');
-      if(ico && ico.classList.contains('spin') && count){
-        count.textContent = 'connecting · ' + sec + 's';
-      }
-    });
-    if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints · ' + sec + 's elapsed';
-  }, 250);
+  let elapsedTimer = null;
+  if(showOverlay){
+    elapsedTimer = setInterval(() => {
+      const sec = ((performance.now() - t0) / 1000).toFixed(1);
+      statusEl && statusEl.querySelectorAll('.row').forEach(row => {
+        const ico = row.querySelector('.ico');
+        const count = row.querySelector('.count');
+        if(ico && ico.classList.contains('spin') && count){
+          count.textContent = 'connecting · ' + sec + 's';
+        }
+      });
+      if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints · ' + sec + 's elapsed';
+    }, 250);
+  }
 
   function fetchWithTimeout(url, ms){
     const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -7025,14 +7035,14 @@ async function fetchFromAppsScript(opts){
       setRow(i, '✕', 'err', msg);
     }
     done++;
-    if(progress){
+    if(showOverlay && progress){
       const pct = 4 + Math.round((done/urls.length) * 90);
       progress.querySelector('.bar').style.width = pct + '%';
     }
   });
 
   await Promise.all(promises);
-  clearInterval(elapsedTimer);
+  if(elapsedTimer) clearInterval(elapsedTimer);
   const totalMs = Math.round(performance.now() - t0);
 
   if(allRows.length || poRegRows.length){
@@ -7043,9 +7053,11 @@ async function fetchFromAppsScript(opts){
         rowCount: allRows.length,
         generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
       };
-      if(loadText) loadText.textContent = 'Rendering dashboard…';
-      if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
-      if(progress) progress.querySelector('.bar').style.width = '100%';
+      if(showOverlay){
+        if(loadText) loadText.textContent = 'Rendering dashboard…';
+        if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
+        if(progress) progress.querySelector('.bar').style.width = '100%';
+      }
       window._dashboardReload({ rows: allRows, meta });
     }
     // Route PO Register rows to the PO Register tab
@@ -7069,19 +7081,22 @@ async function fetchFromAppsScript(opts){
     document.getElementById('refreshBtn').style.display = '';
     document.getElementById('refreshBtn').dataset.source = 'appsScript';
     document.getElementById('menuDisconnect').style.display = '';
+    try{ localStorage.setItem('mis.lastLiveSource', 'appsScript'); }catch(e){}
     const totalLoaded = allRows.length + poRegRows.length;
     if(!silent) toast('⚡ Live: ' + totalLoaded.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
   } else {
     if(!silent) toast('Apps Script returned 0 rows. Check the script and sheet IDs.', 'warn', 5500);
   }
 
-  setTimeout(() => {
-    if(overlay) overlay.classList.add('hide');
-    if(statusEl) statusEl.classList.add('hide');
-    if(loadText) loadText.textContent = 'Loading dashboard…';
-    if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
-    if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
-  }, 800);
+  if(showOverlay){
+    setTimeout(() => {
+      if(overlay) overlay.classList.add('hide');
+      if(statusEl) statusEl.classList.add('hide');
+      if(loadText) loadText.textContent = 'Loading dashboard…';
+      if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
+      if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
+    }, 800);
+  }
 }
 
 document.getElementById('menuAppsScript').addEventListener('click', () => {
@@ -7175,6 +7190,15 @@ document.getElementById('refreshBtn').addEventListener('click', async () => {
   if(getAppsScriptUrls().length){
     const btn = document.getElementById('refreshBtn');
     if(btn){ btn.style.display = ''; btn.dataset.source = 'appsScript'; }
+
+    // If Apps Script was the last source, refresh in background after first paint.
+    const cacheSource = String((META && META.sourceFile) || '').toLowerCase();
+    let lastSource = '';
+    try{ lastSource = localStorage.getItem('mis.lastLiveSource') || ''; }catch(e){}
+    if(lastSource === 'appsScript' || cacheSource.indexOf('apps script') !== -1){
+      const delay = (typeof RAW !== 'undefined' && RAW.length > 0) ? 1200 : 300;
+      setTimeout(function(){ fetchFromAppsScript({ silent:true, background:true }); }, delay);
+    }
   }
 })();
 
@@ -7222,6 +7246,8 @@ function promptForSpAppsScriptUrls(prefill){
 async function fetchFromSharePointAppsScript(opts){
   opts = opts || {};
   const silent = !!opts.silent;
+  const background = !!opts.background;
+  const showOverlay = !background;
   let urls = opts.urls || getSharePointAppsScriptUrls();
   if(!urls.length){
     urls = promptForSpAppsScriptUrls([]);
@@ -7291,20 +7317,24 @@ async function fetchFromSharePointAppsScript(opts){
   const progress = document.getElementById('loadingProgress');
   const statusEl = document.getElementById('fetchStatus');
 
-  if(overlay) overlay.classList.remove('hide');
-  if(loadText) loadText.textContent = '☁️ Fetching from SharePoint';
-  if(loadSub)  loadSub.textContent  = 'Routing through ' + urls.length + ' Apps Script endpoint' + (urls.length > 1 ? 's' : '') + '…';
-  if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '4%'; }
-  if(statusEl){
-    statusEl.classList.remove('hide');
-    statusEl.innerHTML = urls.map(function(u, i){
-      const short = u.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 22) + '…';
-      return '<div class="row" data-idx="'+i+'"><span class="ico spin">⟳</span><span class="name">'+short+'</span><span class="count">connecting…</span></div>';
-    }).join('');
+  if(showOverlay){
+    if(overlay) overlay.classList.remove('hide');
+    if(loadText) loadText.textContent = '☁️ Fetching from SharePoint';
+    if(loadSub)  loadSub.textContent  = 'Routing through ' + urls.length + ' Apps Script endpoint' + (urls.length > 1 ? 's' : '') + '…';
+    if(progress){ progress.classList.remove('indet'); progress.querySelector('.bar').style.width = '4%'; }
+    if(statusEl){
+      statusEl.classList.remove('hide');
+      statusEl.innerHTML = urls.map(function(u, i){
+        const short = u.replace(/^https:\/\/script\.google\.com\/macros\/s\//,'').slice(0, 22) + '…';
+        return '<div class="row" data-idx="'+i+'"><span class="ico spin">⟳</span><span class="name">'+short+'</span><span class="count">connecting…</span></div>';
+      }).join('');
+    }
+  } else {
+    if(statusEl) statusEl.classList.add('hide');
   }
 
   function setRow(idx, ico, iconCls, count){
-    if(!statusEl) return;
+    if(!showOverlay || !statusEl) return;
     const row = statusEl.querySelector('.row[data-idx="'+idx+'"]');
     if(!row) return;
     row.querySelector('.ico').className = 'ico ' + iconCls;
@@ -7330,17 +7360,20 @@ async function fetchFromSharePointAppsScript(opts){
   }
 
   // Live elapsed counter
-  const elapsedTimer = setInterval(() => {
-    const sec = ((performance.now() - t0) / 1000).toFixed(1);
-    statusEl && statusEl.querySelectorAll('.row').forEach(row => {
-      const ico = row.querySelector('.ico');
-      const count = row.querySelector('.count');
-      if(ico && ico.classList.contains('spin') && count){
-        count.textContent = 'connecting · ' + sec + 's';
-      }
-    });
-    if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints · ' + sec + 's elapsed';
-  }, 250);
+  let elapsedTimer = null;
+  if(showOverlay){
+    elapsedTimer = setInterval(() => {
+      const sec = ((performance.now() - t0) / 1000).toFixed(1);
+      statusEl && statusEl.querySelectorAll('.row').forEach(row => {
+        const ico = row.querySelector('.ico');
+        const count = row.querySelector('.count');
+        if(ico && ico.classList.contains('spin') && count){
+          count.textContent = 'connecting · ' + sec + 's';
+        }
+      });
+      if(loadSub) loadSub.textContent = done + ' of ' + urls.length + ' endpoints · ' + sec + 's elapsed';
+    }, 250);
+  }
 
   const promises = urls.map(async function(url, i){
     try{
@@ -7367,14 +7400,14 @@ async function fetchFromSharePointAppsScript(opts){
       setRow(i, '✕', 'err', msg);
     }
     done++;
-    if(progress){
+    if(showOverlay && progress){
       const pct = 4 + Math.round((done/urls.length) * 90);
       progress.querySelector('.bar').style.width = pct + '%';
     }
   });
 
   await Promise.all(promises);
-  clearInterval(elapsedTimer);
+  if(elapsedTimer) clearInterval(elapsedTimer);
   const totalMs = Math.round(performance.now() - t0);
 
   if(allRows.length){
@@ -7384,25 +7417,30 @@ async function fetchFromSharePointAppsScript(opts){
       rowCount: allRows.length,
       generatedAt: new Date().toLocaleString() + ' · ' + totalMs + 'ms client / ' + totalServerMs + 'ms server',
     };
-    if(loadText) loadText.textContent = 'Rendering dashboard…';
-    if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
-    if(progress) progress.querySelector('.bar').style.width = '100%';
+    if(showOverlay){
+      if(loadText) loadText.textContent = 'Rendering dashboard…';
+      if(loadSub)  loadSub.textContent  = 'Loaded ' + allRows.length.toLocaleString('en-IN') + ' rows';
+      if(progress) progress.querySelector('.bar').style.width = '100%';
+    }
     window._dashboardReload({ rows: allRows, meta });
     document.getElementById('refreshBtn').style.display = '';
     document.getElementById('refreshBtn').dataset.source = 'spAppsScript';
     document.getElementById('menuDisconnect').style.display = '';
+    try{ localStorage.setItem('mis.lastLiveSource', 'spAppsScript'); }catch(e){}
     if(!silent) toast('☁️ SharePoint live: ' + allRows.length.toLocaleString('en-IN') + ' rows in ' + (totalMs/1000).toFixed(1) + 's', 'success', 4500);
   } else {
     if(!silent) toast('SharePoint Apps Script returned 0 rows. Check the script Logs.', 'warn', 5500);
   }
 
-  setTimeout(() => {
-    if(overlay) overlay.classList.add('hide');
-    if(statusEl) statusEl.classList.add('hide');
-    if(loadText) loadText.textContent = 'Loading dashboard…';
-    if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
-    if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
-  }, 800);
+  if(showOverlay){
+    setTimeout(() => {
+      if(overlay) overlay.classList.add('hide');
+      if(statusEl) statusEl.classList.add('hide');
+      if(loadText) loadText.textContent = 'Loading dashboard…';
+      if(loadSub)  loadSub.textContent  = 'Preparing your workspace';
+      if(progress){ progress.classList.add('indet'); progress.querySelector('.bar').style.width = ''; }
+    }, 800);
+  }
 }
 
 // Wire up the new menu item and empty-state button
@@ -7431,6 +7469,15 @@ document.getElementById('menuSharePointLive').addEventListener('click', () => {
     if(btn && btn.style.display === 'none'){
       btn.style.display = '';
       btn.dataset.source = 'spAppsScript';
+    }
+
+    // If SharePoint Apps Script was the last source, refresh in background.
+    const cacheSource = String((META && META.sourceFile) || '').toLowerCase();
+    let lastSource = '';
+    try{ lastSource = localStorage.getItem('mis.lastLiveSource') || ''; }catch(e){}
+    if(lastSource === 'spAppsScript' || cacheSource.indexOf('sharepoint (live)') !== -1){
+      const delay = (typeof RAW !== 'undefined' && RAW.length > 0) ? 1200 : 300;
+      setTimeout(function(){ fetchFromSharePointAppsScript({ silent:true, background:true }); }, delay);
     }
   }
 })();
@@ -7464,6 +7511,7 @@ document.getElementById('menuDisconnect').addEventListener('click', ()=>{
   try{ localStorage.removeItem('mis.appsScriptUrl'); }catch(e){}
   try{ localStorage.removeItem('mis.appsScriptUrls'); }catch(e){}
   try{ localStorage.removeItem('mis.spAppsScriptUrls'); }catch(e){}
+  try { localStorage.removeItem('mis.lastLiveSource'); } catch (e) {}
   // Stop auto-refresh timers
   if(gsheetState.timer){ clearInterval(gsheetState.timer); gsheetState.timer = null; }
   if(spState.timer){ clearInterval(spState.timer); spState.timer = null; }
@@ -7739,6 +7787,7 @@ async function fetchGoogleSheets(){
       generatedAt: new Date().toLocaleString(),
     };
     window._dashboardReload({rows: allRows, meta});
+    try{ localStorage.setItem('mis.lastLiveSource', 'gsheet'); }catch(e){}
     if(status) status.innerHTML = `<span style="color:var(--good)">✓ Loaded ${allRows.length} rows from ${sheetInfo.join(', ')}. Last: ${new Date().toLocaleTimeString()}</span>`;
     toast(`Live data: ${allRows.length} rows from ${gsheetState.urls.length} sheet(s).`, 'success');
     gsheetState.lastFetch = new Date();
