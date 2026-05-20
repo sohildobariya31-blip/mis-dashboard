@@ -2201,8 +2201,8 @@ window._dashboardReload = function(parsed){
   if(dashTab) dashTab.click();
   try { render(); } catch(e) { console.error('render() crashed:', e); }
   if(typeof refreshFxTab === 'function') refreshFxTab();
-  // Defer localStorage save to avoid blocking the main thread
-  setTimeout(function(){ try{ localStorage.setItem('mis_dashboard_data', JSON.stringify({rows: parsed.rows, meta: parsed.meta})); }catch(e){} }, 1000);
+  // Defer persistence so UI render is not blocked by storage work
+  setTimeout(function(){ persistDashboardSnapshot(parsed); }, 600);
 };
 
 const ALL_COLUMNS = [
@@ -6933,6 +6933,108 @@ function canonicalSheetTag(tag){
   return String(tag || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+const DASH_CACHE_IDB = { db: 'misDashboardCache', store: 'kv', key: 'dashboardDataV2' };
+
+function openDashboardCacheDb(){
+  return new Promise(function(resolve){
+    try{
+      if(!window.indexedDB) return resolve(null);
+      const req = indexedDB.open(DASH_CACHE_IDB.db, 1);
+      req.onupgradeneeded = function(){
+        const db = req.result;
+        if(db && !db.objectStoreNames.contains(DASH_CACHE_IDB.store)){
+          db.createObjectStore(DASH_CACHE_IDB.store);
+        }
+      };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ resolve(null); };
+    }catch(e){
+      resolve(null);
+    }
+  });
+}
+
+async function dashboardCacheSet(payload){
+  const db = await openDashboardCacheDb();
+  if(!db) return false;
+  return new Promise(function(resolve){
+    try{
+      const tx = db.transaction(DASH_CACHE_IDB.store, 'readwrite');
+      tx.objectStore(DASH_CACHE_IDB.store).put(payload, DASH_CACHE_IDB.key);
+      tx.oncomplete = function(){ try{ db.close(); }catch(e){} resolve(true); };
+      tx.onerror = tx.onabort = function(){ try{ db.close(); }catch(e){} resolve(false); };
+    }catch(e){
+      try{ db.close(); }catch(_e){}
+      resolve(false);
+    }
+  });
+}
+
+async function dashboardCacheGet(){
+  const db = await openDashboardCacheDb();
+  if(!db) return null;
+  return new Promise(function(resolve){
+    try{
+      const tx = db.transaction(DASH_CACHE_IDB.store, 'readonly');
+      const req = tx.objectStore(DASH_CACHE_IDB.store).get(DASH_CACHE_IDB.key);
+      req.onsuccess = function(){ resolve(req.result || null); };
+      req.onerror = function(){ resolve(null); };
+      tx.oncomplete = tx.onerror = tx.onabort = function(){ try{ db.close(); }catch(e){} };
+    }catch(e){
+      try{ db.close(); }catch(_e){}
+      resolve(null);
+    }
+  });
+}
+
+async function dashboardCacheClear(){
+  const db = await openDashboardCacheDb();
+  if(!db) return false;
+  return new Promise(function(resolve){
+    try{
+      const tx = db.transaction(DASH_CACHE_IDB.store, 'readwrite');
+      tx.objectStore(DASH_CACHE_IDB.store).delete(DASH_CACHE_IDB.key);
+      tx.oncomplete = function(){ try{ db.close(); }catch(e){} resolve(true); };
+      tx.onerror = tx.onabort = function(){ try{ db.close(); }catch(e){} resolve(false); };
+    }catch(e){
+      try{ db.close(); }catch(_e){}
+      resolve(false);
+    }
+  });
+}
+
+function persistDashboardSnapshot(parsed){
+  if(!parsed || !Array.isArray(parsed.rows) || !parsed.rows.length) return;
+  const payload = {
+    rows: parsed.rows,
+    meta: parsed.meta || {},
+    cachedAt: Date.now(),
+  };
+  try{ localStorage.setItem('mis_dashboard_data', JSON.stringify(payload)); }catch(e){}
+  dashboardCacheSet(payload);
+}
+
+async function restoreDashboardSnapshotFromIdb(){
+  try{
+    if(typeof RAW !== 'undefined' && Array.isArray(RAW) && RAW.length) return false;
+  }catch(e){}
+  const cached = await dashboardCacheGet();
+  if(!cached || !Array.isArray(cached.rows) || !cached.rows.length) return false;
+  const meta = cached.meta || {
+    sourceFile: 'Cached snapshot',
+    sheet: '-',
+    rowCount: cached.rows.length,
+    generatedAt: new Date(cached.cachedAt || Date.now()).toLocaleString() + ' · cached',
+  };
+  try{
+    window._dashboardReload({ rows: cached.rows, meta });
+    return true;
+  }catch(e){
+    console.error('Failed to restore cached snapshot:', e);
+    return false;
+  }
+}
+
 async function fetchFromAppsScript(opts){
   opts = opts || {};
   const silent = !!opts.silent;
@@ -7232,12 +7334,22 @@ document.getElementById('refreshBtn').addEventListener('click', async () => {
     const btn = document.getElementById('refreshBtn');
     if(btn){ btn.style.display = ''; btn.dataset.source = 'appsScript'; }
 
-    // If Apps Script was the last source, refresh in background after first paint.
+    // Auto-refresh Apps Script in background so open is instant from cache, then data updates quietly.
     const cacheSource = String((META && META.sourceFile) || '').toLowerCase();
     let lastSource = '';
     try{ lastSource = localStorage.getItem('mis.lastLiveSource') || ''; }catch(e){}
-    if(lastSource === 'appsScript' || cacheSource.indexOf('apps script') !== -1){
-      const delay = (typeof RAW !== 'undefined' && RAW.length > 0) ? 1200 : 300;
+    let autoOnOpen = true;
+    try{
+      const pref = String(localStorage.getItem('mis.autoAppsScriptOnOpen') || '').toLowerCase();
+      if(pref === '0' || pref === 'false' || pref === 'off') autoOnOpen = false;
+    }catch(e){}
+    const shouldAutoRefresh = autoOnOpen && (
+      lastSource === 'appsScript' ||
+      cacheSource.indexOf('apps script') !== -1 ||
+      (typeof RAW !== 'undefined' && RAW.length === 0)
+    );
+    if(shouldAutoRefresh){
+      const delay = (typeof RAW !== 'undefined' && RAW.length > 0) ? 1200 : 1500;
       setTimeout(function(){ fetchFromAppsScript({ silent:true, background:true }); }, delay);
     }
   }
@@ -7553,6 +7665,9 @@ document.getElementById('menuDisconnect').addEventListener('click', ()=>{
   try{ localStorage.removeItem('mis.appsScriptUrls'); }catch(e){}
   try{ localStorage.removeItem('mis.spAppsScriptUrls'); }catch(e){}
   try { localStorage.removeItem('mis.lastLiveSource'); } catch (e) {}
+  try { localStorage.removeItem('mis_dashboard_data'); } catch (e) {}
+  try { localStorage.removeItem('mis_po_register'); } catch (e) {}
+  dashboardCacheClear();
   // Stop auto-refresh timers
   if(gsheetState.timer){ clearInterval(gsheetState.timer); gsheetState.timer = null; }
   if(spState.timer){ clearInterval(spState.timer); spState.timer = null; }
@@ -7872,8 +7987,14 @@ if(RAW.length > 0){
   var dashTab = document.querySelector('.tab-btn[data-tab="dashboard"]');
   if(dashTab) dashTab.click();
 } else {
-  // Show upload screen — Google Sheets live fetch only works from a web server
-  // For local file usage, upload Excel files manually
+  restoreDashboardSnapshotFromIdb().then(function(restored){
+    if(restored){
+      const src = String((META && META.sourceFile) || '').toLowerCase();
+      if(src.indexOf('apps script') !== -1){
+        toast('Showing cached data instantly. Live refresh is running in background.', 'info', 2800);
+      }
+    }
+  });
 }
 // Show source tag if data loaded from cache
 if(RAW.length > 0){
